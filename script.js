@@ -453,22 +453,53 @@ document.getElementById('loadFile').onchange = e => {
     e.target.value = '';
 };
 
-// 重置果實
-document.getElementById('resetFruits').onclick = () => {
-    if (confirm('確定要重置所有果實嗎？\n這會將所有果實庫存歸零，並清除所有分配記錄。')) {
+// 重置果實庫存
+document.getElementById('resetInventory').onclick = () => {
+    if (confirm('確定要重置所有果實庫存嗎？\n這會將所有果實庫存歸零。')) {
         // 重置庫存
         Object.keys(fruitInventory).forEach(key => {
             fruitInventory[key] = 0;
         });
         
+        saveData();
+        renderInventory();
+        alert('果實庫存已重置！');
+    }
+};
+
+// 重置角色果實
+document.getElementById('resetAssignments').onclick = () => {
+    if (confirm('確定要重置所有角色的果實分配嗎？\n這會清除所有角色的果實分配記錄。')) {
         // 重置分配
         Object.keys(fruitAssignments).forEach(char => {
             fruitAssignments[char] = ['', '', '', ''];
         });
         
         saveData();
+        renderFruitAssignments();
+        renderInventory();
+        alert('角色果實分配已重置！');
+    }
+};
+
+// 重置快速分配的角色果實
+document.getElementById('resetPresetCharacter').onclick = () => {
+    if (!presetCharacterSelect) {
+        alert('無法找到角色選擇器！');
+        return;
+    }
+    
+    const characterName = presetCharacterSelect.value;
+    if (!characterName) {
+        alert('請先選擇角色！');
+        return;
+    }
+    
+    if (confirm(`確定要重置「${characterName}」的果實分配嗎？`)) {
+        fruitAssignments[characterName] = ['', '', '', ''];
+        saveData();
         renderAll();
-        alert('果實已重置！');
+        alert(`已重置「${characterName}」的果實分配！`);
     }
 };
 

@@ -17,7 +17,7 @@
             <button id="saveData">💾 匯出紀錄</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
             <button id="loadData" class="secondary">📂 匯入紀錄</button>
-            <button id="resetFruits" class="warning">🔄 重置果實</button>
+
             <button id="exportCharacters" class="secondary">📤 匯出角色清單</button>
             <input type="file" id="importCharactersFile" style="display:none;" accept=".json">
             <button id="importCharacters" class="secondary">📥 匯入角色清單</button>
@@ -35,6 +35,9 @@
 
     <section id="fruitInventory">
         <h2>果實庫存管理</h2>
+        <div style="text-align: center; margin-bottom: 15px;">
+            <button id="resetInventory" class="warning">🔄 重置果實庫存</button>
+        </div>
         <div id="inventoryContainer"></div>
         <div class="add-fruit-section">
             <strong>新增果實類型：</strong>
@@ -50,6 +53,9 @@
 
     <section id="fruitSection">
         <h2>果實分配</h2>
+        <div style="text-align: center; margin-bottom: 15px;">
+            <button id="resetAssignments" class="warning">🔄 重置角色果實</button>
+        </div>
         <div class="search-section">
             <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱...">
         </div>
@@ -63,6 +69,7 @@
                 <button id="presetBtn2">戰型組合</button>
                 <button id="presetBtn3">擊種組合</button>
                 <button id="presetBtn4">速必雙削</button>
+                <button id="resetPresetCharacter" class="warning">🔄 重置</button>
             </div>
         </div>
         <div class="mode-select">
