@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>果實分配模擬器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="header-container">
+        <h1 id="mainTitle">果實分配模擬器</h1>
+        <div class="record-management">
+            <input type="text" id="recordName" placeholder="輸入紀錄名稱">
+            <button id="saveData">💾 匯出紀錄</button>
+            <input type="file" id="loadFile" style="display:none;" accept=".json">
+            <button id="loadData" class="secondary">📂 匯入紀錄</button>
+        </div>
+    </div>
+
+    <section id="characterSection">
+        <h2>角色管理</h2>
+        <div class="character-add-section">
+            <input type="text" id="newCharacter" placeholder="輸入角色名稱">
+            <button id="addCharacter">➕ 新增角色</button>
+            <button id="showCharacterList" class="secondary">📋 角色清單 (<span id="characterCount">0</span>)</button>
+        </div>
+    </section>
+
+    <section id="fruitInventory">
+        <h2>果實庫存管理</h2>
+        <div id="inventoryContainer"></div>
+        <div class="add-fruit-section">
+            <strong>新增果實類型：</strong>
+            <input type="text" id="newFruitName" placeholder="果實名稱">
+            <select id="newFruitCategory">
+                <option value="同族">同族加擊類</option>
+                <option value="戰型">戰型加擊類</option>
+                <option value="擊種">擊種加擊類</option>
+                <option value="其他">其他類</option>
+            </select>
+            <button id="addFruit">➕ 新增果實</button>
+        </div>
+    </section>
+
+    <section id="fruitSection">
+        <h2>果實分配</h2>
+        <div class="mode-select">
+            顯示模式：
+            <select id="displayMode">
+                <option value="list">清單模式</option>
+                <option value="table">表格模式</option>
+            </select>
+        </div>
+        <div id="fruitAssignments"></div>
+    </section>
+
+    <!-- Character List Modal -->
+    <div id="characterModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>角色清單</h2>
+            <ul id="characterList"></ul>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
