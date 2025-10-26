@@ -402,11 +402,6 @@ document.getElementById('cancelDeleteFruit').onclick = () => {
 // 模式切換
 modeSelect.onchange = renderFruitAssignments;
 
-// 搜尋功能
-if (searchInput) {
-    searchInput.oninput = renderFruitAssignments;
-}
-
 // 匯出紀錄
 document.getElementById('saveData').onclick = () => {
     const name = document.getElementById('recordName').value.trim();
@@ -638,10 +633,34 @@ document.getElementById('newCharacter').onkeypress = (e) => {
 };
 
 // 快速分配搜尋功能
+// 快速分配搜尋功能
 const presetSearch = document.getElementById('presetSearch');
-if (presetSearch) {
+const syncSearchCheckbox = document.getElementById('syncSearch');
+
+if (presetSearch && searchInput && syncSearchCheckbox) {
+    // 快速分配搜尋框輸入時
     presetSearch.oninput = () => {
-        updatePresetCharacterSelect(presetSearch.value.trim());
+        const value = presetSearch.value.trim();
+        updatePresetCharacterSelect(value);
+        
+        // 如果開啟同步，更新另一個搜尋框
+        if (syncSearchCheckbox.checked) {
+            searchInput.value = value;
+            renderFruitAssignments();
+        }
+    };
+    
+    // 果實分配搜尋框輸入時
+    const originalSearchInput = searchInput.oninput;
+    searchInput.oninput = () => {
+        const value = searchInput.value.trim();
+        renderFruitAssignments();
+        
+        // 如果開啟同步，更新另一個搜尋框
+        if (syncSearchCheckbox.checked) {
+            presetSearch.value = value;
+            updatePresetCharacterSelect(value);
+        }
     };
 }
 
