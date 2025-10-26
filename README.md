@@ -57,7 +57,7 @@
 
 直接開啟 `index.html` 即可使用，無需安裝任何套件。
 
-或訪問線上版本：[在此填入你的 GitHub Pages 連結]
+或訪問線上版本：[https://emily4027.github.io/monster-strike-fruit-assign/]
 
 ## 資料格式
 
@@ -90,7 +90,7 @@
 
 ## 授權
 
-MIT License
+本專案供個人學習與使用，歡迎自由使用與修改。
 
 ## 問題回報
 
