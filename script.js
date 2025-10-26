@@ -10,6 +10,7 @@ let fruitCategories = JSON.parse(localStorage.getItem('fruitCategories')) || def
 let characters = JSON.parse(localStorage.getItem('characters')) || [];
 let fruitAssignments = JSON.parse(localStorage.getItem('fruitAssignments')) || {};
 let fruitInventory = JSON.parse(localStorage.getItem('fruitInventory')) || {};
+let fruitObtained = JSON.parse(localStorage.getItem('fruitObtained')) || {};
 let recordName = localStorage.getItem('recordName') || '';
 
 // 初始化庫存
@@ -38,6 +39,7 @@ function saveData() {
     localStorage.setItem('fruitAssignments', JSON.stringify(fruitAssignments));
     localStorage.setItem('fruitInventory', JSON.stringify(fruitInventory));
     localStorage.setItem('fruitCategories', JSON.stringify(fruitCategories));
+    localStorage.setItem('fruitObtained', JSON.stringify(fruitObtained));
     localStorage.setItem('recordName', recordName);
 }
 
@@ -118,68 +120,137 @@ function renderFruitAssignments() {
         return;
     }
 
-    if (mode === 'list') {
-        filteredCharacters.forEach(name => {
-            const div = document.createElement('div');
-            div.style.marginBottom = '15px';
-            div.innerHTML = `<strong style="font-size: 16px;">${name}</strong><br>`;
-            const assigned = fruitAssignments[name] || [];
-            for (let i = 0; i < 4; i++) {
-                const sel = document.createElement('select');
-                const opt = document.createElement('option');
-                opt.value = ''; opt.textContent = '未選擇';
-                sel.appendChild(opt);
-                fruits.forEach(f => {
-                    const option = document.createElement('option');
-                    option.value = f;
-                    option.textContent = f;
-                    sel.appendChild(option);
-                });
-                sel.value = assigned[i] || '';
-                sel.onchange = () => {
-                    if (!fruitAssignments[name]) fruitAssignments[name] = [];
-                    fruitAssignments[name][i] = sel.value;
-                    saveData();
-                    renderInventory();
-                };
-                div.appendChild(sel);
-            }
-            fruitContainer.appendChild(div);
-        });
-    } else {
-        const table = document.createElement('table');
-        const header = table.insertRow();
-        header.insertCell().innerHTML = '<strong>角色</strong>';
-        for (let i = 1; i <= 4; i++) header.insertCell().innerHTML = `<strong>果實 ${i}</strong>`;
+	if (mode === 'list') {
+		filteredCharacters.forEach(name => {
+			const div = document.createElement('div');
+			div.style.marginBottom = '15px';
+			div.innerHTML = `<strong style="font-size: 16px;">${name}</strong><br>`;
+			const assigned = fruitAssignments[name] || [];
 
-        filteredCharacters.forEach(name => {
-            const row = table.insertRow();
-            row.insertCell().textContent = name;
-            const assigned = fruitAssignments[name] || [];
-            for (let i = 0; i < 4; i++) {
-                const cell = row.insertCell();
-                const sel = document.createElement('select');
-                const opt = document.createElement('option');
-                opt.value = ''; opt.textContent = '未選擇';
-                sel.appendChild(opt);
-                fruits.forEach(f => {
-                    const option = document.createElement('option');
-                    option.value = f;
-                    option.textContent = f;
-                    sel.appendChild(option);
-                });
-                sel.value = assigned[i] || '';
-                sel.onchange = () => {
-                    if (!fruitAssignments[name]) fruitAssignments[name] = [];
-                    fruitAssignments[name][i] = sel.value;
-                    saveData();
-                    renderInventory();
-                };
-                cell.appendChild(sel);
-            }
-        });
-        fruitContainer.appendChild(table);
-    }
+			if (!fruitObtained[name]) fruitObtained[name] = [];
+
+			for (let i = 0; i < 4; i++) {
+				const wrapper = document.createElement('span');
+				wrapper.style.display = 'inline-flex';
+				wrapper.style.alignItems = 'center';
+				wrapper.style.marginRight = '10px';
+				wrapper.style.marginBottom = '5px';
+
+				const sel = document.createElement('select');
+				const opt = document.createElement('option');
+				opt.value = '';
+				opt.textContent = '未選擇';
+				sel.appendChild(opt);
+
+				fruits.forEach(f => {
+					const option = document.createElement('option');
+					option.value = f;
+					option.textContent = f;
+					sel.appendChild(option);
+				});
+
+				sel.value = assigned[i] || '';
+				sel.onchange = () => {
+					if (!fruitAssignments[name]) fruitAssignments[name] = [];
+					fruitAssignments[name][i] = sel.value;
+					saveData();
+					renderInventory();
+					renderFruitAssignments();
+				};
+
+				const checkbox = document.createElement('input');
+				checkbox.type = 'checkbox';
+				checkbox.checked = fruitObtained[name][i] || false;
+				checkbox.style.marginLeft = '5px';
+				checkbox.title = '已獲得';
+				checkbox.onchange = () => {
+					if (!fruitObtained[name]) fruitObtained[name] = [];
+					fruitObtained[name][i] = checkbox.checked;
+					saveData();
+					renderInventory();
+				};
+
+				// 如果沒選果實，隱藏勾選框
+				if (!sel.value) {
+					checkbox.style.display = 'none';
+				}
+
+				wrapper.appendChild(sel);
+				wrapper.appendChild(checkbox);
+				div.appendChild(wrapper);
+			}
+			fruitContainer.appendChild(div);
+		});
+	}
+	else {
+		const table = document.createElement('table');
+		const header = table.insertRow();
+		header.insertCell().innerHTML = '<strong>角色</strong>';
+		for (let i = 1; i <= 4; i++)
+			header.insertCell().innerHTML = `<strong>果實 ${i}</strong>`;
+
+		filteredCharacters.forEach(name => {
+			const row = table.insertRow();
+			row.insertCell().textContent = name;
+			const assigned = fruitAssignments[name] || [];
+
+			if (!fruitObtained[name]) fruitObtained[name] = [];
+
+			for (let i = 0; i < 4; i++) {
+				const cell = row.insertCell();
+
+				const wrapper = document.createElement('div');
+				wrapper.style.display = 'flex';
+				wrapper.style.alignItems = 'center';
+				wrapper.style.gap = '5px';
+
+				const sel = document.createElement('select');
+				sel.style.flex = '1';
+				const opt = document.createElement('option');
+				opt.value = '';
+				opt.textContent = '未選擇';
+				sel.appendChild(opt);
+
+				fruits.forEach(f => {
+					const option = document.createElement('option');
+					option.value = f;
+					option.textContent = f;
+					sel.appendChild(option);
+				});
+
+				sel.value = assigned[i] || '';
+				sel.onchange = () => {
+					if (!fruitAssignments[name]) fruitAssignments[name] = [];
+					fruitAssignments[name][i] = sel.value;
+					saveData();
+					renderInventory();
+					renderFruitAssignments();
+				};
+
+				const checkbox = document.createElement('input');
+				checkbox.type = 'checkbox';
+				checkbox.checked = fruitObtained[name][i] || false;
+				checkbox.title = '已獲得';
+				checkbox.onchange = () => {
+					if (!fruitObtained[name]) fruitObtained[name] = [];
+					fruitObtained[name][i] = checkbox.checked;
+					saveData();
+					renderInventory();
+				};
+
+				// 如果沒選果實，隱藏勾選框
+				if (!sel.value) {
+					checkbox.style.display = 'none';
+				}
+
+				wrapper.appendChild(sel);
+				wrapper.appendChild(checkbox);
+				cell.appendChild(wrapper);
+			}
+		});
+		fruitContainer.appendChild(table);
+	}
+
 }
 
 function renderInventory() {
@@ -246,9 +317,25 @@ function createInventoryItem(f) {
         renderInventory();
     };
 
-    const usedCount = Object.values(fruitAssignments)
-        .flat()
-        .filter(x => x === f).length;
+	// 計算總分配數量
+	const totalAssigned = Object.values(fruitAssignments)
+		.flat()
+		.filter(x => x === f).length;
+
+	// 計算已獲得數量
+	let obtainedCount = 0;
+	Object.keys(fruitObtained).forEach(char => {
+		const assignments = fruitAssignments[char] || [];
+		const obtained = fruitObtained[char] || [];
+		assignments.forEach((fruit, idx) => {
+			if (fruit === f && obtained[idx]) {
+				obtainedCount++;
+			}
+		});
+	});
+
+	const usedCount = totalAssigned - obtainedCount;
+
 
     const diff = (fruitInventory[f] || 0) - usedCount;
     const diffText = diff === 0 ? '✓ 剛好' :
@@ -416,6 +503,7 @@ document.getElementById('saveData').onclick = () => {
         fruitInventory,
         fruitCategories,
         characters,
+        fruitObtained,
         recordName: name || recordName
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -444,6 +532,7 @@ document.getElementById('loadFile').onchange = e => {
             fruitInventory = data.fruitInventory || fruitInventory;
             fruitCategories = data.fruitCategories || fruitCategories;
             characters = data.characters || characters;
+            fruitObtained = data.fruitObtained || {};
             recordName = data.recordName || '';
             
             document.getElementById('recordName').value = recordName;
