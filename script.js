@@ -29,7 +29,7 @@ const presetCharacterSelect = document.getElementById('presetCharacter');
 
 // 更新標題
 function updateTitle() {
-    const name = recordName ? `${recordName}的果實分配模擬器` : '果實分配模擬器';
+    const name = recordName ? `${recordName}的果實分配` : '果實分配';
     mainTitle.textContent = name;
 }
 
