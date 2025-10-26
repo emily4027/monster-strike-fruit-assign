@@ -121,7 +121,6 @@ li {
     border: 1px solid #ddd;
     border-radius: 8px;
     background-color: #f9f9f9;
-    position: relative;
 }
 
 .inventory-item strong {
@@ -150,20 +149,23 @@ li {
     font-weight: 500;
 }
 
-.delete-fruit {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    padding: 2px 6px;
-    font-size: 12px;
-    background-color: #f44336;
-}
-
 .add-fruit-section {
     margin-top: 15px;
     padding: 10px;
     background-color: #f0f0f0;
     border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.add-fruit-section strong {
+    margin-right: 5px;
+}
+
+#deleteFruitSelect {
+    min-width: 150px;
 }
 
 /* Modal styles */
