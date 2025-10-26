@@ -604,12 +604,18 @@ document.getElementById('exportCharacters').onclick = () => {
         return;
     }
     
-    const data = { characters };
+    const data = { 
+        characters,
+        recordName  // 加上記錄名稱
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    
+    // 根據記錄名稱命名檔案
+    const filename = recordName ? `${recordName}的角色清單` : '角色清單';
     a.href = url;
-    a.download = '角色清單.json';
+    a.download = `${filename}.json`;
     a.click();
     URL.revokeObjectURL(url);
 };
@@ -636,6 +642,12 @@ document.getElementById('importCharactersFile').onchange = e => {
             if (newCharacters.length === 0) {
                 alert('沒有新的角色需要匯入！');
                 return;
+            }
+            
+            // 如果匯入檔案有記錄名稱且目前沒有記錄名稱，則使用匯入的
+            if (data.recordName && !recordName) {
+                recordName = data.recordName;
+                document.getElementById('recordName').value = recordName;
             }
             
             characters.push(...newCharacters);
