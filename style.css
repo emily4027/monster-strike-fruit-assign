@@ -124,6 +124,11 @@ li {
     flex-wrap: wrap;
 }
 
+.preset-row input[type="text"] {
+    flex: 1;
+    min-width: 150px;
+}
+
 .preset-row select {
     flex: 1;
     min-width: 150px;
