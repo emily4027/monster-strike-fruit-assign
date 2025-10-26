@@ -98,11 +98,30 @@ li {
 .search-section {
     text-align: center;
     margin-bottom: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
 }
 
-.search-section input {
+.search-section input[type="text"] {
     width: 300px;
     max-width: 80%;
+}
+
+.search-section label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.search-section input[type="checkbox"] {
+    cursor: pointer;
+    width: auto;
+    margin: 0;
 }
 
 .preset-combinations {
