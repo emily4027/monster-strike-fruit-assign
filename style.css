@@ -113,7 +113,7 @@ li {
 .search-section label {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
     cursor: pointer;
     user-select: none;
 }
@@ -122,6 +122,7 @@ li {
     cursor: pointer;
     width: auto;
     margin: 0;
+    margin-right: 5px; /* 固定間距 */
 }
 
 .preset-combinations {
