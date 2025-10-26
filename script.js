@@ -45,15 +45,25 @@ function getAllFruits() {
     return Object.values(fruitCategories).flat();
 }
 
-function updatePresetCharacterSelect() {
+function updatePresetCharacterSelect(searchTerm = '') {
     if (!presetCharacterSelect) return;
     presetCharacterSelect.innerHTML = '<option value="">選擇角色</option>';
-    characters.forEach(name => {
+    
+    const filteredChars = searchTerm 
+        ? characters.filter(name => name.toLowerCase().includes(searchTerm.toLowerCase()))
+        : characters;
+    
+    filteredChars.forEach(name => {
         const option = document.createElement('option');
         option.value = name;
         option.textContent = name;
         presetCharacterSelect.appendChild(option);
     });
+    
+    // 如果只有一個結果，自動選取
+    if (filteredChars.length === 1) {
+        presetCharacterSelect.value = filteredChars[0];
+    }
 }
 
 function renderCharacters() {
@@ -626,6 +636,14 @@ document.getElementById('newCharacter').onkeypress = (e) => {
         document.getElementById('addCharacter').click();
     }
 };
+
+// 快速分配搜尋功能
+const presetSearch = document.getElementById('presetSearch');
+if (presetSearch) {
+    presetSearch.oninput = () => {
+        updatePresetCharacterSelect(presetSearch.value.trim());
+    };
+}
 
 // 初始化
 window.onload = renderAll;
