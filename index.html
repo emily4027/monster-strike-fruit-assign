@@ -30,12 +30,16 @@
         <h2>果實庫存管理</h2>
         <div id="inventoryContainer"></div>
         <div class="add-fruit-section">
-            <strong>新增果實類型：</strong>
+            <strong>果實管理：</strong>
             <input type="text" id="newFruitName" placeholder="果實名稱">
             <select id="newFruitCategory">
                 <option value="其他">其他類</option>
             </select>
             <button id="addFruit">➕ 新增果實</button>
+            <select id="deleteFruitSelect">
+                <option value="">選擇要刪除的果實</option>
+            </select>
+            <button id="deleteFruit" class="danger">🗑️ 刪除果實</button>
         </div>
     </section>
 
