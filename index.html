@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>果實分配模擬器</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,6 +17,10 @@
             <button id="saveData">💾 匯出紀錄</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
             <button id="loadData" class="secondary">📂 匯入紀錄</button>
+            <button id="resetFruits" class="warning">🔄 重置果實</button>
+            <button id="exportCharacters" class="secondary">📤 匯出角色清單</button>
+            <input type="file" id="importCharactersFile" style="display:none;" accept=".json">
+            <button id="importCharacters" class="secondary">📥 匯入角色清單</button>
         </div>
     </div>
 
@@ -30,22 +37,34 @@
         <h2>果實庫存管理</h2>
         <div id="inventoryContainer"></div>
         <div class="add-fruit-section">
-            <strong>果實管理：</strong>
+            <strong>新增果實類型：</strong>
             <input type="text" id="newFruitName" placeholder="果實名稱">
             <select id="newFruitCategory">
-                <option value="加擊">加擊類</option>
-                <option value="其他">其他類</option>
+                <option value="加擊類">加擊類</option>
+                <option value="其他">其他</option>
             </select>
             <button id="addFruit">➕ 新增果實</button>
-            <select id="deleteFruitSelect">
-                <option value="">選擇要刪除的果實</option>
-            </select>
-            <button id="deleteFruit" class="danger">🗑️ 刪除果實</button>
+            <button id="deleteFruitBtn" class="danger">🗑️ 刪除果實</button>
         </div>
     </section>
 
     <section id="fruitSection">
         <h2>果實分配</h2>
+        <div class="search-section">
+            <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱...">
+        </div>
+        <div class="preset-combinations">
+            <h3>快速分配組合</h3>
+            <div class="preset-row">
+                <select id="presetCharacter">
+                    <option value="">選擇角色</option>
+                </select>
+                <button id="presetBtn1">同族組合</button>
+                <button id="presetBtn2">戰型組合</button>
+                <button id="presetBtn3">擊種組合</button>
+                <button id="presetBtn4">速必雙削</button>
+            </div>
+        </div>
         <div class="mode-select">
             顯示模式：
             <select id="displayMode">
@@ -62,6 +81,20 @@
             <span class="close">&times;</span>
             <h2>角色清單</h2>
             <ul id="characterList"></ul>
+        </div>
+    </div>
+
+    <!-- Delete Fruit Modal -->
+    <div id="deleteFruitModal" class="modal">
+        <div class="modal-content">
+            <span class="closeDeleteModal">&times;</span>
+            <h2>刪除果實</h2>
+            <p>選擇要刪除的果實：</p>
+            <select id="deleteFruitSelect" style="width: 100%; margin-bottom: 10px;">
+                <option value="">請選擇果實</option>
+            </select>
+            <button id="confirmDeleteFruit" class="danger">確認刪除</button>
+            <button id="cancelDeleteFruit" class="secondary">取消</button>
         </div>
     </div>
 

@@ -22,7 +22,10 @@ const fruitContainer = document.getElementById('fruitAssignments');
 const inventoryContainer = document.getElementById('inventoryContainer');
 const modeSelect = document.getElementById('displayMode');
 const modal = document.getElementById('characterModal');
+const deleteFruitModal = document.getElementById('deleteFruitModal');
 const mainTitle = document.getElementById('mainTitle');
+const searchInput = document.getElementById('searchCharacter');
+const presetCharacterSelect = document.getElementById('presetCharacter');
 
 // 更新標題
 function updateTitle() {
@@ -40,6 +43,16 @@ function saveData() {
 
 function getAllFruits() {
     return Object.values(fruitCategories).flat();
+}
+
+function updatePresetCharacterSelect() {
+    presetCharacterSelect.innerHTML = '<option value="">選擇角色</option>';
+    characters.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        presetCharacterSelect.appendChild(option);
+    });
 }
 
 function renderCharacters() {
@@ -71,18 +84,30 @@ function deleteCharacter(name) {
     }
 }
 
+function getFilteredCharacters() {
+    const searchTerm = searchInput.value.trim().toLowerCase();
+    if (!searchTerm) return characters;
+    return characters.filter(name => name.toLowerCase().includes(searchTerm));
+}
+
 function renderFruitAssignments() {
     fruitContainer.innerHTML = '';
     const mode = modeSelect.value;
     const fruits = getAllFruits();
+    const filteredCharacters = getFilteredCharacters();
 
     if (characters.length === 0) {
         fruitContainer.innerHTML = '<p style="text-align: center; color: #999;">請先新增角色</p>';
         return;
     }
 
+    if (filteredCharacters.length === 0) {
+        fruitContainer.innerHTML = '<p style="text-align: center; color: #999;">找不到符合的角色</p>';
+        return;
+    }
+
     if (mode === 'list') {
-        characters.forEach(name => {
+        filteredCharacters.forEach(name => {
             const div = document.createElement('div');
             div.style.marginBottom = '15px';
             div.innerHTML = `<strong style="font-size: 16px;">${name}</strong><br>`;
@@ -115,7 +140,7 @@ function renderFruitAssignments() {
         header.insertCell().innerHTML = '<strong>角色</strong>';
         for (let i = 1; i <= 4; i++) header.insertCell().innerHTML = `<strong>果實 ${i}</strong>`;
 
-        characters.forEach(name => {
+        filteredCharacters.forEach(name => {
             const row = table.insertRow();
             row.insertCell().textContent = name;
             const assigned = fruitAssignments[name] || [];
@@ -193,9 +218,6 @@ function renderInventory() {
 
     inventoryContainer.appendChild(attackDiv);
     inventoryContainer.appendChild(otherDiv);
-    
-    // 更新刪除果實下拉選單
-    updateDeleteFruitSelect();
 }
 
 function createInventoryItem(f) {
@@ -236,31 +258,12 @@ function createInventoryItem(f) {
     return item;
 }
 
-function deleteFruit(fruitName) {
-    if (confirm(`確定要刪除果實「${fruitName}」嗎？\n這會清除所有相關的分配記錄。`)) {
-        // 從分類中移除
-        Object.keys(fruitCategories).forEach(category => {
-            fruitCategories[category] = fruitCategories[category].filter(f => f !== fruitName);
-        });
-        
-        // 從庫存中移除
-        delete fruitInventory[fruitName];
-        
-        // 從分配中移除
-        Object.keys(fruitAssignments).forEach(char => {
-            fruitAssignments[char] = fruitAssignments[char].map(f => f === fruitName ? '' : f);
-        });
-        
-        saveData();
-        renderAll();
-    }
-}
-
 function renderAll() {
     renderCharacters();
     renderFruitAssignments();
     renderInventory();
     updateTitle();
+    updatePresetCharacterSelect();
 }
 
 // 新增角色
@@ -286,9 +289,16 @@ document.querySelector('.close').onclick = () => {
     modal.style.display = 'none';
 };
 
+document.querySelector('.closeDeleteModal').onclick = () => {
+    deleteFruitModal.style.display = 'none';
+};
+
 window.onclick = (event) => {
     if (event.target === modal) {
         modal.style.display = 'none';
+    }
+    if (event.target === deleteFruitModal) {
+        deleteFruitModal.style.display = 'none';
     }
 };
 
@@ -308,16 +318,80 @@ document.getElementById('addFruit').onclick = () => {
         return;
     }
     
-    fruitCategories[category].push(name);
+    // 根據選擇的類別，決定要加到哪裡
+    if (category === '加擊類') {
+        // 預設加到同族類
+        if (!fruitCategories['同族']) fruitCategories['同族'] = [];
+        fruitCategories['同族'].push(name);
+    } else {
+        if (!fruitCategories['其他']) fruitCategories['其他'] = [];
+        fruitCategories['其他'].push(name);
+    }
+    
     fruitInventory[name] = 0;
     saveData();
     renderAll();
     document.getElementById('newFruitName').value = '';
-    alert(`果實「${name}」已新增到${category}類！`);
+    alert(`果實「${name}」已新增到${category}！`);
+};
+
+// 刪除果實按鈕
+document.getElementById('deleteFruitBtn').onclick = () => {
+    const allFruits = getAllFruits();
+    if (allFruits.length === 0) {
+        alert('目前沒有可刪除的果實！');
+        return;
+    }
+    
+    const select = document.getElementById('deleteFruitSelect');
+    select.innerHTML = '<option value="">請選擇果實</option>';
+    allFruits.forEach(f => {
+        const option = document.createElement('option');
+        option.value = f;
+        option.textContent = f;
+        select.appendChild(option);
+    });
+    
+    deleteFruitModal.style.display = 'block';
+};
+
+document.getElementById('confirmDeleteFruit').onclick = () => {
+    const fruitName = document.getElementById('deleteFruitSelect').value;
+    if (!fruitName) {
+        alert('請選擇要刪除的果實！');
+        return;
+    }
+    
+    if (confirm(`確定要刪除果實「${fruitName}」嗎？\n這會清除所有相關的分配記錄。`)) {
+        // 從分類中移除
+        Object.keys(fruitCategories).forEach(category => {
+            fruitCategories[category] = fruitCategories[category].filter(f => f !== fruitName);
+        });
+        
+        // 從庫存中移除
+        delete fruitInventory[fruitName];
+        
+        // 從分配中移除
+        Object.keys(fruitAssignments).forEach(char => {
+            fruitAssignments[char] = fruitAssignments[char].map(f => f === fruitName ? '' : f);
+        });
+        
+        saveData();
+        renderAll();
+        deleteFruitModal.style.display = 'none';
+        alert('果實已刪除！');
+    }
+};
+
+document.getElementById('cancelDeleteFruit').onclick = () => {
+    deleteFruitModal.style.display = 'none';
 };
 
 // 模式切換
 modeSelect.onchange = renderFruitAssignments;
+
+// 搜尋功能
+searchInput.oninput = renderFruitAssignments;
 
 // 匯出紀錄
 document.getElementById('saveData').onclick = () => {
@@ -372,8 +446,134 @@ document.getElementById('loadFile').onchange = e => {
         }
     };
     reader.readAsText(file);
-    e.target.value = ''; // 清空 input，允許重複匯入同一檔案
+    e.target.value = '';
 };
+
+// 重置果實
+document.getElementById('resetFruits').onclick = () => {
+    if (confirm('確定要重置所有果實嗎？\n這會將所有果實庫存歸零，並清除所有分配記錄。')) {
+        // 重置庫存
+        Object.keys(fruitInventory).forEach(key => {
+            fruitInventory[key] = 0;
+        });
+        
+        // 重置分配
+        Object.keys(fruitAssignments).forEach(char => {
+            fruitAssignments[char] = ['', '', '', ''];
+        });
+        
+        saveData();
+        renderAll();
+        alert('果實已重置！');
+    }
+};
+
+// 匯出角色清單
+document.getElementById('exportCharacters').onclick = () => {
+    if (characters.length === 0) {
+        alert('目前沒有角色可匯出！');
+        return;
+    }
+    
+    const data = { characters };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '角色清單.json';
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+// 匯入角色清單
+document.getElementById('importCharacters').onclick = () => {
+    document.getElementById('importCharactersFile').click();
+};
+
+document.getElementById('importCharactersFile').onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+        try {
+            const data = JSON.parse(evt.target.result);
+            if (!data.characters || !Array.isArray(data.characters)) {
+                alert('匯入失敗：檔案格式錯誤');
+                return;
+            }
+            
+            // 合併角色清單，避免重複
+            const newCharacters = data.characters.filter(c => !characters.includes(c));
+            if (newCharacters.length === 0) {
+                alert('沒有新的角色需要匯入！');
+                return;
+            }
+            
+            characters.push(...newCharacters);
+            saveData();
+            renderAll();
+            alert(`成功匯入 ${newCharacters.length} 個角色！`);
+        } catch (error) {
+            alert('匯入失敗：檔案格式錯誤');
+        }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+};
+
+// 預設組合
+const presetCombinations = {
+    '同族': ['同族加擊', '同族加命擊', '同族加擊速'],
+    '戰型': ['戰型加擊', '戰型加命擊', '戰型加擊速'],
+    '擊種': ['擊種加擊', '擊種加命擊', '擊種加擊速'],
+    '速必雙削': ['將消', '兵消', '速必']
+};
+
+function applyPreset(presetName) {
+    const characterName = presetCharacterSelect.value;
+    if (!characterName) {
+        alert('請先選擇角色！');
+        return;
+    }
+    
+    const fruits = presetCombinations[presetName];
+    if (!fruits) {
+        alert('未知的組合！');
+        return;
+    }
+    
+    // 檢查所有果實是否存在
+    const allFruits = getAllFruits();
+    const missingFruits = fruits.filter(f => !allFruits.includes(f));
+    if (missingFruits.length > 0) {
+        alert(`以下果實不存在：${missingFruits.join('、')}\n請先新增這些果實！`);
+        return;
+    }
+    
+    // 套用組合
+    if (!fruitAssignments[characterName]) {
+        fruitAssignments[characterName] = [];
+    }
+    
+    fruits.forEach((fruit, index) => {
+        fruitAssignments[characterName][index] = fruit;
+    });
+    
+    // 如果組合少於4個，剩餘的設為空
+    for (let i = fruits.length; i < 4; i++) {
+        fruitAssignments[characterName][i] = '';
+    }
+    
+    saveData();
+    renderAll();
+    alert(`已將「${presetName}」組合套用到「${characterName}」！`);
+}
+
+// 預設組合按鈕事件
+document.getElementById('presetBtn1').onclick = () => applyPreset('同族');
+document.getElementById('presetBtn2').onclick = () => applyPreset('戰型');
+document.getElementById('presetBtn3').onclick = () => applyPreset('擊種');
+document.getElementById('presetBtn4').onclick = () => applyPreset('速必雙削');
 
 // 按 Enter 新增角色
 document.getElementById('newCharacter').onkeypress = (e) => {

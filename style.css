@@ -1,5 +1,5 @@
 body {
-    font-family: "Microsoft JhengHei", sans-serif;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
     background-color: #f6f8fa;
     color: #333;
     margin: 20px;
@@ -70,6 +70,14 @@ button.danger:hover {
     background-color: #da190b;
 }
 
+button.warning {
+    background-color: #ff9800;
+}
+
+button.warning:hover {
+    background-color: #e68900;
+}
+
 ul { 
     list-style-type: none; 
     padding: 0; 
@@ -85,6 +93,40 @@ li {
 .mode-select {
     text-align: center;
     margin-bottom: 10px;
+}
+
+.search-section {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.search-section input {
+    width: 300px;
+    max-width: 80%;
+}
+
+.preset-combinations {
+    background-color: #f0f0f0;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.preset-combinations h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.preset-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.preset-row select {
+    flex: 1;
+    min-width: 150px;
 }
 
 #inventoryContainer {
@@ -154,18 +196,6 @@ li {
     padding: 10px;
     background-color: #f0f0f0;
     border-radius: 8px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-}
-
-.add-fruit-section strong {
-    margin-right: 5px;
-}
-
-#deleteFruitSelect {
-    min-width: 150px;
 }
 
 /* Modal styles */
@@ -193,7 +223,7 @@ li {
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
-.close {
+.close, .closeDeleteModal {
     color: #aaa;
     float: right;
     font-size: 28px;
@@ -203,7 +233,9 @@ li {
 }
 
 .close:hover,
-.close:focus {
+.close:focus,
+.closeDeleteModal:hover,
+.closeDeleteModal:focus {
     color: #000;
 }
 
