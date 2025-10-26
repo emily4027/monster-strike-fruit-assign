@@ -193,16 +193,14 @@ function renderInventory() {
 
     inventoryContainer.appendChild(attackDiv);
     inventoryContainer.appendChild(otherDiv);
+    
+    // 更新刪除果實下拉選單
+    updateDeleteFruitSelect();
 }
 
 function createInventoryItem(f) {
     const item = document.createElement('div');
     item.className = 'inventory-item';
-    
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'delete-fruit';
-    deleteBtn.textContent = '✕';
-    deleteBtn.onclick = () => deleteFruit(f);
     
     const input = document.createElement('input');
     input.type = 'number';
@@ -232,8 +230,7 @@ function createInventoryItem(f) {
     contentDiv.appendChild(input);
     contentDiv.appendChild(statsDiv);
 
-    item.appendChild(deleteBtn);
-    item.innerHTML += `<strong>${f}</strong>`;
+    item.innerHTML = `<strong>${f}</strong>`;
     item.appendChild(contentDiv);
     
     return item;
