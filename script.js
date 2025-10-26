@@ -509,7 +509,12 @@ document.getElementById('saveData').onclick = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+
+    // 加上日期時間
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
     const filename = (name || recordName || '果實紀錄');
+	
     a.href = url;
     a.download = `${filename}.json`;
     a.click();
@@ -611,9 +616,12 @@ document.getElementById('exportCharacters').onclick = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    
-    // 根據記錄名稱命名檔案
-    const filename = recordName ? `${recordName}的角色清單` : '角色清單';
+
+	// 加上日期時間
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    const filename = recordName ? `${recordName}的角色清單_${timestamp}` : `角色清單_${timestamp}`;
+
     a.href = url;
     a.download = `${filename}.json`;
     a.click();
