@@ -46,6 +46,7 @@ function getAllFruits() {
 }
 
 function updatePresetCharacterSelect() {
+    if (!presetCharacterSelect) return;
     presetCharacterSelect.innerHTML = '<option value="">選擇角色</option>';
     characters.forEach(name => {
         const option = document.createElement('option');
@@ -85,6 +86,7 @@ function deleteCharacter(name) {
 }
 
 function getFilteredCharacters() {
+    if (!searchInput) return characters;
     const searchTerm = searchInput.value.trim().toLowerCase();
     if (!searchTerm) return characters;
     return characters.filter(name => name.toLowerCase().includes(searchTerm));
@@ -391,7 +393,9 @@ document.getElementById('cancelDeleteFruit').onclick = () => {
 modeSelect.onchange = renderFruitAssignments;
 
 // 搜尋功能
-searchInput.oninput = renderFruitAssignments;
+if (searchInput) {
+    searchInput.oninput = renderFruitAssignments;
+}
 
 // 匯出紀錄
 document.getElementById('saveData').onclick = () => {
@@ -530,6 +534,11 @@ const presetCombinations = {
 };
 
 function applyPreset(presetName) {
+    if (!presetCharacterSelect) {
+        alert('無法找到角色選擇器！');
+        return;
+    }
+    
     const characterName = presetCharacterSelect.value;
     if (!characterName) {
         alert('請先選擇角色！');
@@ -570,10 +579,15 @@ function applyPreset(presetName) {
 }
 
 // 預設組合按鈕事件
-document.getElementById('presetBtn1').onclick = () => applyPreset('同族');
-document.getElementById('presetBtn2').onclick = () => applyPreset('戰型');
-document.getElementById('presetBtn3').onclick = () => applyPreset('擊種');
-document.getElementById('presetBtn4').onclick = () => applyPreset('速必雙削');
+const presetBtn1 = document.getElementById('presetBtn1');
+const presetBtn2 = document.getElementById('presetBtn2');
+const presetBtn3 = document.getElementById('presetBtn3');
+const presetBtn4 = document.getElementById('presetBtn4');
+
+if (presetBtn1) presetBtn1.onclick = () => applyPreset('同族');
+if (presetBtn2) presetBtn2.onclick = () => applyPreset('戰型');
+if (presetBtn3) presetBtn3.onclick = () => applyPreset('擊種');
+if (presetBtn4) presetBtn4.onclick = () => applyPreset('速必雙削');
 
 // 按 Enter 新增角色
 document.getElementById('newCharacter').onkeypress = (e) => {
