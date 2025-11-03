@@ -1,6 +1,6 @@
 # 果實分配系統
 
-一個用於管理角色果實分配的網頁工具，適合遊戲玩家追蹤和規劃果實資源。
+一個用於管理角色果實的網頁工具，讓玩家更方便記錄和管理果實。
 
 ## 功能特色
 
@@ -55,7 +55,7 @@
 
 ## 安裝與執行
 
-直接開啟 `index.html` 即可使用，無需安裝任何套件。
+將`index.html`、`script.js`、`style.css`三個檔案放在同一個資料夾下後，直接開啟 `index.html` 即可。
 
 或訪問線上版本：[https://emily4027.github.io/monster-strike-fruit-assign/]
 
@@ -87,6 +87,7 @@
 - 純前端實作（HTML + CSS + JavaScript）
 - 使用 localStorage 保存資料
 - 響應式設計，支援行動裝置
+- AI協作
 
 ## 授權
 
