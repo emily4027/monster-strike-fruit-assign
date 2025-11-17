@@ -4,112 +4,177 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>果實分配</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Noto Sans TC 字體 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- [修改] 載入獨立的 CSS 檔案 -->
     <link rel="stylesheet" href="style.css">
+    
 </head>
-<body>
-    <div class="header-container">
-        <h1 id="mainTitle">果實分配</h1>
-        <div class="record-management">
-            <input type="text" id="recordName" placeholder="輸入紀錄名稱">
-            <button id="saveData">💾 匯出紀錄</button>
+<body class="bg-gray-100 p-4 md:p-8">
+
+    <!-- 1. 標題與匯出入 -->
+    <header class="bg-white shadow-lg rounded-lg p-6">
+        <h1 id="mainTitle" class="text-3xl font-bold text-center text-gray-800">果實分配</h1>
+        <div class="record-management mt-4 flex justify-center items-center gap-2 flex-wrap">
+            <input type="text" id="recordName" placeholder="輸入紀錄名稱" class="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            <button id="saveData" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">💾 儲存</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
-            <button id="loadData" class="secondary">📂 匯入紀錄</button>
-
-            <button id="exportCharacters" class="secondary">📤 匯出角色清單</button>
-            <input type="file" id="importCharactersFile" style="display:none;" accept=".json">
-            <button id="importCharacters" class="secondary">📥 匯入角色清單</button>
+            <button id="loadData" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">📂 載入</button>
+            <button id="resetAllData" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75">🔥 全部初始化</button>
         </div>
-    </div>
+    </header>
 
-    <section id="characterSection">
-        <h2>角色管理</h2>
-        <div class="character-add-section">
-            <input type="text" id="newCharacter" placeholder="輸入角色名稱">
-            <button id="addCharacter">➕ 新增角色</button>
-            <button id="showCharacterList" class="secondary">📋 角色清單 (<span id="characterCount">0</span>)</button>
+    <!-- 2. 角色管理 -->
+    <section id="characterSection" class="bg-white shadow-lg rounded-lg p-6 mt-6">
+        <h2 class="text-2xl font-bold text-center mb-4">角色管理</h2>
+        <div class="character-add-section bg-gray-50 p-4 rounded-lg">
+            <div class="flex flex-wrap md:flex-nowrap gap-2">
+                <input type="text" id="newCharacter" placeholder="輸入角色名稱" class="flex-grow border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 transition min-w-[200px]">
+                <button id="addCharacter" class="w-full md:w-auto px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">➕ 新增角色</button>
+                <button id="showCharacterList" class="w-full md:w-auto px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">📋 角色清單 (<span id="characterCount">0</span>)</button>
+                <button id="resetCharacterList" class="w-full md:w-auto px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75">🔄 重置角色清單</button>
+            </div>
         </div>
     </section>
 
-    <section id="fruitInventory">
-        <h2>果實庫存管理</h2>
-        <div style="text-align: center; margin-bottom: 15px;">
-            <button id="resetInventory" class="warning">🔄 重置果實庫存</button>
+    <!-- 3. 果實庫存管理 -->
+    <section id="fruitInventory" class="bg-white shadow-lg rounded-lg p-6 mt-6">
+        <h2 class="text-2xl font-bold text-center mb-4">果實庫存管理</h2>
+        
+        <div class="text-center mb-4 flex flex-wrap justify-center items-center gap-4">
+            <button id="resetInventory" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75">🔄 重置果實庫存</button>
+            
+            <label class="flex items-center space-x-2 cursor-pointer text-gray-700">
+                <input type="checkbox" id="showInventoryDetail" class="rounded text-blue-600 focus:ring-blue-500">
+                <span>顯示詳細資訊</span>
+            </label>
         </div>
-        <div id="inventoryContainer"></div>
-        <div class="add-fruit-section">
-            <strong>新增果實類型：</strong>
-            <input type="text" id="newFruitName" placeholder="果實名稱">
-            <select id="newFruitCategory">
+
+        <!-- 庫存容器 (Grid 佈局) -->
+        <div id="inventoryContainer" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 加擊類 -->
+            <div class="inventory-category border-2 border-green-500 rounded-lg p-4">
+                <h3 class="text-xl font-bold text-green-700 mb-3 flex items-center gap-2">⚔️ 加擊類</h3>
+                <div id="attackFruits" class="space-y-4"></div>
+            </div>
+            <!-- 其他類 -->
+            <div class="inventory-category border-2 border-blue-500 rounded-lg p-4">
+                <h3 class="text-xl font-bold text-blue-700 mb-3 flex items-center gap-2">🎯 其他類</h3>
+                <div id="otherFruits" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- 新增果實區塊 -->
+        <div class="add-fruit-section mt-6 bg-gray-50 p-4 rounded-lg flex flex-wrap items-center gap-2">
+            <strong class="text-gray-700 min-w-full md:min-w-0">新增果實類型：</strong>
+            <input type="text" id="newFruitName" placeholder="果實名稱" class="flex-grow border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 transition min-w-[150px]">
+            <select id="newFruitCategory" class="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 transition">
                 <option value="加擊類">加擊類</option>
                 <option value="其他">其他</option>
             </select>
-            <button id="addFruit">➕ 新增果實</button>
-            <button id="deleteFruitBtn" class="danger">🗑️ 刪除果實</button>
+            <button id="addFruit" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">➕ 新增果實</button>
+            <button id="deleteFruitBtn" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75">🗑️ 刪除果實</button>
         </div>
     </section>
 
-    <section id="fruitSection">
-        <h2>果實分配</h2>
-        <div style="text-align: center; margin-bottom: 15px;">
-            <button id="resetAssignments" class="warning">🔄 重置角色果實</button>
+    <!-- 4. 果實分配 -->
+    <section id="fruitSection" class="bg-white shadow-lg rounded-lg p-6 mt-6">
+        <h2 class="text-2xl font-bold text-center mb-4">果實分配</h2>
+        <div class="text-center mb-4">
+            <button id="resetAssignments" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75">🔄 重置角色果實</button>
         </div>
-        <div class="search-section">
-            <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱...">
-            <label style="margin-left: 15px;">
-                <input type="checkbox" id="syncSearch" checked>
-                <span>同步搜尋</span>
+        
+        <div class="search-section mb-4 flex justify-center items-center gap-4 flex-wrap">
+            <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱..." class="w-full md:w-72 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            <label class="flex items-center space-x-2 cursor-pointer text-gray-700">
+                <input type="checkbox" id="filterModeCheckbox" class="rounded text-blue-600 focus:ring-blue-500">
+                <span>僅顯示搜尋角色</span>
             </label>
         </div>
-        <div class="preset-combinations">
-            <h3>快速分配組合</h3>
-            <div class="preset-row">
-                <input type="text" id="presetSearch" placeholder="🔍 搜尋角色...">
-                <select id="presetCharacter" size="1">
+
+        <!-- 快速分配組合 -->
+        <div class="preset-combinations bg-gray-50 p-4 rounded-lg mb-4">
+            <h3 class="text-lg font-bold mb-3 text-gray-800">快速分配組合</h3>
+            <div class="preset-row flex flex-wrap items-center gap-2">
+                <select id="presetCharacter" size="1" class="flex-grow border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition min-w-[150px]">
                     <option value="">選擇角色</option>
                 </select>
-                <button id="presetBtn1">同族組合</button>
-                <button id="presetBtn2">戰型組合</button>
-                <button id="presetBtn3">擊種組合</button>
-                <button id="presetBtn4">速必雙削</button>
-                <button id="resetPresetCharacter" class="warning">🔄 重置</button>
+                <div class="flex gap-2 flex-wrap">
+                    <button id="presetBtn1" class="px-3 py-1.5 bg-green-600 text-white font-semibold rounded-md shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">同族組合</button>
+                    <button id="presetBtn2" class="px-3 py-1.5 bg-blue-600 text-white font-semibold rounded-md shadow-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">戰型組合</button>
+                    <button id="presetBtn3" class="px-3 py-1.5 bg-indigo-600 text-white font-semibold rounded-md shadow-md hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75">擊種組合</button>
+                    <button id="presetBtn4" class="px-3 py-1.5 bg-teal-600 text-white font-semibold rounded-md shadow-md hover:bg-teal-700 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75">速必雙削</button>
+                    <button id="resetPresetCharacter" class="px-3 py-1.5 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 ml-auto">🔄 重置</button>
+                </div>
             </div>
         </div>
-        <div class="mode-select">
-            顯示模式：
-            <select id="displayMode">
-                <option value="list">清單模式</option>
-                <option value="table" selected>表格模式</option>
-            </select>
+
+        <input type="hidden" id="displayMode" value="table">
+
+        <div id="fruitAssignments" class="overflow-x-auto">
+            <!-- JS 會在此處生成表格或列表 -->
         </div>
-        <div id="fruitAssignments"></div>
     </section>
 
-    <!-- Character List Modal -->
-    <div id="characterModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>角色清單</h2>
-            <ul id="characterList"></ul>
+    <!-- 彈出視窗 (Modal) 們 -->
+
+    <div id="characterModal" class="modal modal-hidden">
+        <div class="modal-content bg-white w-full max-w-lg rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">角色清單</h2>
+                <span id="closeCharacterModal" class="text-3xl text-gray-500 hover:text-gray-800 cursor-pointer">&times;</span>
+            </div>
+            <input type="text" id="modalCharacterSearch" placeholder="🔍 搜尋要刪除的角色..." class="w-full border rounded-md px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            <ul id="characterList" class="space-y-2">
+                <!-- JS 會填入角色 -->
+            </ul>
         </div>
     </div>
 
-    <!-- Delete Fruit Modal -->
-    <div id="deleteFruitModal" class="modal">
-        <div class="modal-content">
-            <span class="closeDeleteModal">&times;</span>
-            <h2>刪除果實</h2>
-            <p>選擇要刪除的果實：</p>
-            <select id="deleteFruitSelect" style="width: 100%; margin-bottom: 10px;">
+    <div id="deleteFruitModal" class="modal modal-hidden">
+        <div class="modal-content bg-white w-full max-w-md rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">刪除果實</h2>
+                <span id="closeDeleteFruitModal" class="text-3xl text-gray-500 hover:text-gray-800 cursor-pointer">&times;</span>
+            </div>
+            <p class="text-gray-700 mb-3">選擇要刪除的果實：</p>
+            <select id="deleteFruitSelect" class="w-full border rounded-md px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">請選擇果實</option>
             </select>
-            <button id="confirmDeleteFruit" class="danger">確認刪除</button>
-            <button id="cancelDeleteFruit" class="secondary">取消</button>
+            <div class="flex justify-end gap-3">
+                <button id="cancelDeleteFruit" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-md shadow-md hover:bg-gray-400 transition-colors">取消</button>
+                <button id="confirmDeleteFruit" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors">確認刪除</button>
+            </div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <div id="alertModal" class="modal modal-hidden">
+        <div class="modal-content bg-white w-full max-w-sm rounded-lg shadow-xl p-6">
+            <h2 id="alertTitle" class="text-xl font-bold mb-4">提示</h2>
+            <p id="alertMessage" class="text-gray-700 mb-6">這是一條提示訊息。</p>
+            <div class="flex justify-end">
+                <button id="alertOkBtn" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-md hover:bg-blue-700 transition-colors">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmModal" class="modal modal-hidden">
+        <div class="modal-content bg-white w-full max-w-sm rounded-lg shadow-xl p-6">
+            <h2 id="confirmTitle" class="text-xl font-bold mb-4">請確認</h2>
+            <p id="confirmMessage" class="text-gray-700 mb-6">您確定要執行此操作嗎？</p>
+            <div class="flex justify-end gap-3">
+                <button id="confirmCancelBtn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-md shadow-md hover:bg-gray-400 transition-colors">取消</button>
+                <button id="confirmOkBtn" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js" defer></script>
+
 </body>
 </html>

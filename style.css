@@ -1,229 +1,10 @@
+/* 基本樣式，使用 Noto Sans TC 字體 */
 body {
     font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-    background-color: #f6f8fa;
-    color: #333;
-    margin: 20px;
+    background-color: #f6f8fa; /* 更柔和的背景色 */
 }
 
-h1, h2 {
-    text-align: center;
-}
-
-.header-container {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-.record-management {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    margin-top: 15px;
-    flex-wrap: wrap;
-}
-
-section {
-    margin-top: 20px;
-    background: white;
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-input, select, button {
-    margin: 5px;
-    padding: 8px 12px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    font-size: 14px;
-}
-
-button {
-    background-color: #4CAF50;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-button:hover {
-    background-color: #45a049;
-}
-
-button.secondary {
-    background-color: #2196F3;
-}
-
-button.secondary:hover {
-    background-color: #0b7dda;
-}
-
-button.danger {
-    background-color: #f44336;
-}
-
-button.danger:hover {
-    background-color: #da190b;
-}
-
-button.warning {
-    background-color: #ff9800;
-}
-
-button.warning:hover {
-    background-color: #e68900;
-}
-
-ul { 
-    list-style-type: none; 
-    padding: 0; 
-}
-
-li { 
-    margin: 5px 0; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-}
-
-.mode-select {
-    text-align: center;
-    margin-bottom: 10px;
-}
-
-.search-section {
-    text-align: center;
-    margin-bottom: 15px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
-.search-section input[type="text"] {
-    width: 300px;
-    max-width: 80%;
-}
-
-.search-section label {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    cursor: pointer;
-    user-select: none;
-}
-
-.search-section input[type="checkbox"] {
-    cursor: pointer;
-    width: auto;
-    margin: 0;
-    margin-right: 5px; /* 固定間距 */
-}
-
-.preset-combinations {
-    background-color: #f0f0f0;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-}
-
-.preset-combinations h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-}
-
-.preset-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.preset-row input[type="text"] {
-    flex: 1;
-    min-width: 150px;
-}
-
-.preset-row select {
-    flex: 1;
-    min-width: 150px;
-}
-
-#inventoryContainer {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-top: 15px;
-}
-
-.inventory-category {
-    border: 2px solid #4CAF50;
-    border-radius: 10px;
-    padding: 15px;
-}
-
-.inventory-category h3 {
-    margin-top: 0;
-    color: #4CAF50;
-    border-bottom: 2px solid #4CAF50;
-    padding-bottom: 8px;
-}
-
-.inventory-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-}
-
-.inventory-item {
-    flex: 1;
-    min-width: 150px;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background-color: #f9f9f9;
-}
-
-.inventory-item strong {
-    display: block;
-    margin-bottom: 8px;
-    color: #333;
-    font-size: 14px;
-}
-
-.inventory-content {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.inventory-item input {
-    width: 60px;
-    flex-shrink: 0;
-}
-
-.inventory-item .stats {
-    font-size: 14px;
-    color: #666;
-    flex: 1;
-    text-align: left;
-    font-weight: 500;
-}
-
-.add-fruit-section {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: #f0f0f0;
-    border-radius: 8px;
-}
-
-/* Modal styles */
+/* 自訂 Modal 樣式 */
 .modal {
     display: none;
     position: fixed;
@@ -233,64 +14,64 @@ li {
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,0.4);
+    /* 使用 Flex 讓內容垂直置中 */
+    display: none;
+    justify-content: center;
+    align-items: center;
 }
 
 .modal-content {
-    background-color: #fefefe;
-    margin: 5% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    border-radius: 10px;
-    width: 80%;
-    max-width: 600px;
-    max-height: 70vh;
-    overflow-y: auto;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    max-height: 80vh; /* 限制最大高度 */
+    overflow-y: auto; /* 內容過多時滾動 */
 }
 
-.close, .closeDeleteModal {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    line-height: 20px;
+/* 隱藏 Modal */
+.modal-hidden {
+    display: none;
 }
 
-.close:hover,
-.close:focus,
-.closeDeleteModal:hover,
-.closeDeleteModal:focus {
-    color: #000;
+/* 顯示 Modal (使用 Flex) */
+.modal-visible {
+    display: flex;
 }
 
-.character-list-item {
-    padding: 10px;
-    border-bottom: 1px solid #eee;
-}
-
-.character-add-section {
-    background-color: #f0f0f0;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-table, th, td {
-    border: 1px solid #ddd;
-}
-
-th, td {
-    padding: 10px;
-    text-align: center;
-}
-
-th {
-    background-color: #4CAF50;
-    color: white;
+/* 果實分配表格在手機上的樣式 */
+@media (max-width: 768px) {
+    #fruitTable thead {
+        display: none; /* 隱藏表格標頭 */
+    }
+    #fruitTable tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    #fruitTable td {
+        display: block;
+        text-align: right; /* 將內容往右對齊 */
+        padding-left: 50%; /* 留出空間給標題 */
+        position: relative;
+        border: none;
+        border-bottom: 1px solid #eee;
+    }
+    #fruitTable td:before {
+        content: attr(data-label); /* 抓取 data-label 的內容當作標題 */
+        position: absolute;
+        left: 10px;
+        padding-left: 0.5rem;
+        width: calc(50% - 10px);
+        text-align: left; /* 標題靠左 */
+        font-weight: bold;
+    }
+    /* 第一個 <td> (角色名稱) 特殊處理 */
+    #fruitTable td:first-child {
+        background-color: #374151; /* 深灰底色 */
+        color: white;
+        text-align: left; /* 角色名稱靠左 */
+        padding-left: 0.75rem;
+    }
+    #fruitTable td:first-child:before {
+        display: none; /* 角色名稱不需要 data-label */
+    }
 }
