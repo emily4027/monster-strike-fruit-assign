@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
         "其他": ["將消", "兵消", "熱友", "速必"]
     };
 
-    // 安全讀取 LocalStorage
     function safeLoad(key, defaultValue) {
         try {
             const item = localStorage.getItem(key);
@@ -26,15 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let fruitObtained = safeLoad('fruitObtained', {});
     let recordName = localStorage.getItem('recordName') || '';
 
-    // 初始化庫存 (確保所有果實都有 key)
-    // [修正] 確保 fruitCategories 是物件且有值
     if (fruitCategories && typeof fruitCategories === 'object') {
         const allFruits = Object.values(fruitCategories).flat();
         allFruits.forEach(f => {
             if (fruitInventory[f] === undefined) fruitInventory[f] = 0;
         });
     } else {
-        // 如果 fruitCategories 損壞，重置為預設
         fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
     }
 
@@ -48,10 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const fruitTableBody = document.getElementById('fruitTableBody');
     const searchInput = document.getElementById('searchCharacter');
     const filterModeCheckbox = document.getElementById('filterModeCheckbox');
+    const hideCompletedCheckbox = document.getElementById('hideCompletedCheckbox'); // [新增]
     const presetCharacterSelect = document.getElementById('presetCharacter');
     const showInventoryDetailCheckbox = document.getElementById('showInventoryDetail');
     
-    // Modal 相關
     const characterModal = document.getElementById('characterModal');
     const deleteFruitModal = document.getElementById('deleteFruitModal');
     const alertModal = document.getElementById('alertModal');
@@ -165,7 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
         otherFruitsContainer.innerHTML = '';
         
         const allFruits = getAllFruits();
-        // 確保庫存 key 存在
         allFruits.forEach(f => { 
             if (fruitInventory[f] === undefined) fruitInventory[f] = 0; 
         });
@@ -199,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const assigns = safeAssignments[char] || [];
             const obtained = safeObtained[char] || [];
             assigns.forEach((f, i) => { 
-                // [修正] 增加 null 檢查，並確保 obtained[i] 為真值
                 if (f === fruitName && obtained && obtained[i]) obtainedCount++; 
             });
         });
@@ -238,11 +232,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTable() {
         fruitTableBody.innerHTML = '';
         const searchTerm = searchInput.value.trim().toLowerCase();
+        const shouldFilter = filterModeCheckbox.checked;
+        const shouldHideCompleted = hideCompletedCheckbox.checked; // [新增]
         
-        // 過濾邏輯
+        // 1. 初步過濾：搜尋關鍵字 (角色名 或 果實名)
         let targetChars = characters;
-        if (filterModeCheckbox.checked && searchTerm) {
-            targetChars = characters.filter(c => c.toLowerCase().includes(searchTerm));
+        if (shouldFilter && searchTerm) {
+            targetChars = characters.filter(name => {
+                // 檢查角色名稱
+                if (name.toLowerCase().includes(searchTerm)) return true;
+                
+                // [新增] 檢查該角色分配的果實
+                const assigned = fruitAssignments[name] || [];
+                return assigned.some(fruit => fruit && fruit.toLowerCase().includes(searchTerm));
+            });
         }
         
         if (targetChars.length === 0) {
@@ -253,19 +256,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const fruits = getAllFruits();
 
         targetChars.forEach(name => {
-            const row = document.createElement('tr');
+            // 檢查是否已完成
+            const assigned = fruitAssignments[name] || [];
+            if (!fruitObtained[name]) fruitObtained[name] = [];
             
-            // 角色欄位
+            // 判斷邏輯：所有已分配的果實(非空字串)都必須已打勾，且至少要分配一顆果實
+            const validFruits = assigned.filter(f => f !== "");
+            const isCompleted = validFruits.length > 0 && validFruits.every((f, idx) => {
+                // 找出這個果實原本在 assigned 陣列中的 index
+                // 注意：這裡簡化邏輯，假設 assigned 對應 fruitObtained 的 index 是一致的
+                // 我們需要遍歷 assigned 找到對應的 index
+                let originalIndex = -1;
+                assigned.forEach((af, i) => { if (af === f && i >= originalIndex) originalIndex = i; });
+                // 這邊邏輯有點複雜，改用簡單方式：檢查 assigned[i] 對應的 obtained[i]
+                return true; 
+            });
+            
+            // 更準確的判斷完成狀態：遍歷 4 格，如果有分配果實，則必須打勾
+            let allChecked = true;
+            let hasFruit = false;
+            for(let i=0; i<4; i++) {
+                if (assigned[i]) {
+                    hasFruit = true;
+                    if (!fruitObtained[name][i]) {
+                        allChecked = false;
+                        break;
+                    }
+                }
+            }
+            const finished = hasFruit && allChecked;
+
+            // [新增] 如果勾選隱藏且已完成，則跳過不渲染
+            if (shouldHideCompleted && finished) return;
+
+            const row = document.createElement('tr');
+            // [新增] 如果已完成，加上樣式
+            if (finished) row.classList.add('row-completed');
+            
             const nameCell = document.createElement('td');
             nameCell.textContent = name;
             nameCell.setAttribute('data-label', '角色');
             row.appendChild(nameCell);
-
-            const assigned = fruitAssignments[name] || [];
-            // [修正] 確保 fruitObtained[name] 存在且為陣列
-            if (!fruitObtained[name] || !Array.isArray(fruitObtained[name])) {
-                fruitObtained[name] = [];
-            }
 
             for (let i = 0; i < 4; i++) {
                 const cell = document.createElement('td');
@@ -285,7 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                // [關鍵修正] 強制轉換 null/undefined 為 false，防止錯誤
                 checkbox.checked = !!(fruitObtained[name] && fruitObtained[name][i]); 
                 checkbox.style.display = assigned[i] ? 'inline-block' : 'none';
                 
@@ -302,6 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     fruitObtained[name][i] = checkbox.checked;
                     saveData();
                     renderInventory();
+                    // [新增] 打勾後可能會改變完成狀態，重繪表格以更新顏色或隱藏
+                    renderTable(); 
                 };
                 
                 wrapper.appendChild(select);
@@ -337,7 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTitle(); 
     };
     
-    // [關鍵修正] 檔案載入邏輯：移除 BOM、相容舊資料
     document.getElementById('loadData').onclick = () => document.getElementById('loadFile').click();
     document.getElementById('loadFile').onchange = (e) => {
         const file = e.target.files[0];
@@ -347,14 +378,12 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (evt) => {
             try {
                 let result = evt.target.result;
-                // 移除可能存在的 BOM (0xFEFF)
                 if (result.charCodeAt(0) === 0xFEFF) {
                     result = result.substr(1);
                 }
                 
                 const d = JSON.parse(result);
                 
-                // [修正] 深度合併與防呆處理
                 if (d.characters && Array.isArray(d.characters)) characters = d.characters;
                 else characters = [];
 
@@ -372,7 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 recordName = typeof d.recordName === 'string' ? d.recordName : '';
                 
-                // 額外清洗：確保 fruitObtained 內的陣列沒有 null，並轉換為 boolean
                 for (let key in fruitObtained) {
                     if (Array.isArray(fruitObtained[key])) {
                         fruitObtained[key] = fruitObtained[key].map(v => !!v);
@@ -392,7 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     document.getElementById('saveData').onclick = () => {
-        // 取得當前日期字串 YYYYMMDD
         const now = new Date();
         const dateStr = now.getFullYear() +
             String(now.getMonth() + 1).padStart(2, '0') +
@@ -403,7 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         
-        // [新增] 檔名加上日期後綴
         const fileName = recordName ? `${recordName}_${dateStr}.json` : `果實分配_${dateStr}.json`;
         a.download = fileName;
         
@@ -412,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchInput.oninput = () => { renderTable(); updatePresetCharacterSelect(); };
     filterModeCheckbox.onchange = () => renderTable();
+    hideCompletedCheckbox.onchange = () => renderTable(); // [新增]
     showInventoryDetailCheckbox.onchange = () => renderInventory();
     modalCharacterSearch.oninput = () => renderCharacters(modalCharacterSearch.value);
 
