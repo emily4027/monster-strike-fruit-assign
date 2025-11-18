@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 載入資料
     let fruitCategories = safeLoad('fruitCategories', JSON.parse(JSON.stringify(defaultFruits)));
     let characters = safeLoad('characters', []);
     let fruitAssignments = safeLoad('fruitAssignments', {});
@@ -27,16 +26,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let fruitObtained = safeLoad('fruitObtained', {});
     let recordName = localStorage.getItem('recordName') || '';
 
-    // 確保 fruitCategories 結構完整
-    if (!fruitCategories || typeof fruitCategories !== 'object') {
+    // 初始化庫存 (確保所有果實都有 key)
+    // [修正] 確保 fruitCategories 是物件且有值
+    if (fruitCategories && typeof fruitCategories === 'object') {
+        const allFruits = Object.values(fruitCategories).flat();
+        allFruits.forEach(f => {
+            if (fruitInventory[f] === undefined) fruitInventory[f] = 0;
+        });
+    } else {
+        // 如果 fruitCategories 損壞，重置為預設
         fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
     }
-
-    // 初始化庫存 (確保所有果實都有 key)
-    const allFruits = Object.values(fruitCategories).flat();
-    allFruits.forEach(f => {
-        if (fruitInventory[f] === undefined) fruitInventory[f] = 0;
-    });
 
     // --- 2. DOM 元素 ---
     const mainTitle = document.getElementById('mainTitle');
@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const presetCharacterSelect = document.getElementById('presetCharacter');
     const showInventoryDetailCheckbox = document.getElementById('showInventoryDetail');
     
+    // Modal 相關
     const characterModal = document.getElementById('characterModal');
     const deleteFruitModal = document.getElementById('deleteFruitModal');
     const alertModal = document.getElementById('alertModal');
@@ -105,15 +106,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getAllFruits() {
-        if (!fruitCategories) return [];
+        if (!fruitCategories || typeof fruitCategories !== 'object') return [];
         return Object.values(fruitCategories).flat();
     }
 
     function updateTitle() {
         const name = recordName ? `${recordName}的果實分配` : '果實分配';
-        mainTitle.textContent = name;
+        if (mainTitle) mainTitle.textContent = name;
         document.title = name;
-        recordNameInput.value = recordName;
+        if (recordNameInput) recordNameInput.value = recordName;
     }
 
     function renderAll() {
@@ -164,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         otherFruitsContainer.innerHTML = '';
         
         const allFruits = getAllFruits();
+        // 確保庫存 key 存在
         allFruits.forEach(f => { 
             if (fruitInventory[f] === undefined) fruitInventory[f] = 0; 
         });
@@ -187,19 +189,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = document.createElement('div');
         item.className = 'inventory-item';
         
-        // 防呆：確保 fruitAssignments 存在且為物件
         const safeAssignments = fruitAssignments || {};
-        
         const totalAssigned = Object.values(safeAssignments).flat().filter(x => x === fruitName).length;
-        let obtainedCount = 0;
         
-        // 防呆：確保 fruitObtained 存在
+        let obtainedCount = 0;
         const safeObtained = fruitObtained || {};
         
         Object.keys(safeObtained).forEach(char => {
             const assigns = safeAssignments[char] || [];
             const obtained = safeObtained[char] || [];
             assigns.forEach((f, i) => { 
+                // [修正] 增加 null 檢查，並確保 obtained[i] 為真值
                 if (f === fruitName && obtained && obtained[i]) obtainedCount++; 
             });
         });
@@ -220,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="item-content">
                 <input type="number" class="item-input" value="${stock}" min="0">
                 <div class="item-stats">
-                    ${showDetail ? `總: ${totalAssigned} / 缺: ${used}<br>` : ''}
+                    ${showDetail ? `總: ${totalAssigned} / 用: ${used}<br>` : ''}
                     ${diffHtml}
                 </div>
             </div>
@@ -239,6 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fruitTableBody.innerHTML = '';
         const searchTerm = searchInput.value.trim().toLowerCase();
         
+        // 過濾邏輯
         let targetChars = characters;
         if (filterModeCheckbox.checked && searchTerm) {
             targetChars = characters.filter(c => c.toLowerCase().includes(searchTerm));
@@ -254,13 +255,17 @@ document.addEventListener('DOMContentLoaded', () => {
         targetChars.forEach(name => {
             const row = document.createElement('tr');
             
+            // 角色欄位
             const nameCell = document.createElement('td');
             nameCell.textContent = name;
             nameCell.setAttribute('data-label', '角色');
             row.appendChild(nameCell);
 
             const assigned = fruitAssignments[name] || [];
-            if (!fruitObtained[name]) fruitObtained[name] = [];
+            // [修正] 確保 fruitObtained[name] 存在且為陣列
+            if (!fruitObtained[name] || !Array.isArray(fruitObtained[name])) {
+                fruitObtained[name] = [];
+            }
 
             for (let i = 0; i < 4; i++) {
                 const cell = document.createElement('td');
@@ -280,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                // [關鍵修正] 強制轉換 null/undefined 為 false
+                // [關鍵修正] 強制轉換 null/undefined 為 false，防止錯誤
                 checkbox.checked = !!(fruitObtained[name] && fruitObtained[name][i]); 
                 checkbox.style.display = assigned[i] ? 'inline-block' : 'none';
                 
@@ -349,25 +354,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const d = JSON.parse(result);
                 
-                // 相容性處理：如果沒有該欄位，保持空物件或預設值
+                // [修正] 深度合併與防呆處理
                 if (d.characters && Array.isArray(d.characters)) characters = d.characters;
                 else characters = [];
 
-                if (d.fruitAssignments) fruitAssignments = d.fruitAssignments;
+                if (d.fruitAssignments && typeof d.fruitAssignments === 'object') fruitAssignments = d.fruitAssignments;
                 else fruitAssignments = {};
 
-                if (d.fruitInventory) fruitInventory = d.fruitInventory;
+                if (d.fruitInventory && typeof d.fruitInventory === 'object') fruitInventory = d.fruitInventory;
                 else fruitInventory = {};
 
-                if (d.fruitCategories) fruitCategories = d.fruitCategories;
+                if (d.fruitCategories && typeof d.fruitCategories === 'object') fruitCategories = d.fruitCategories;
                 else fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
 
-                if (d.fruitObtained) fruitObtained = d.fruitObtained;
+                if (d.fruitObtained && typeof d.fruitObtained === 'object') fruitObtained = d.fruitObtained;
                 else fruitObtained = {};
 
                 recordName = typeof d.recordName === 'string' ? d.recordName : '';
                 
-                // 額外清洗：確保 fruitObtained 內的陣列沒有 null
+                // 額外清洗：確保 fruitObtained 內的陣列沒有 null，並轉換為 boolean
                 for (let key in fruitObtained) {
                     if (Array.isArray(fruitObtained[key])) {
                         fruitObtained[key] = fruitObtained[key].map(v => !!v);
@@ -379,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 customAlert(`成功載入：${recordName || '未命名紀錄'}`);
             } catch (err) {
                 console.error(err);
-                customAlert('載入失敗：檔案格式錯誤或編碼不支援。');
+                customAlert('載入失敗：檔案格式錯誤或編碼不支援。請檢查檔案是否為有效的 JSON。');
             }
         };
         reader.readAsText(file);
@@ -387,11 +392,21 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     document.getElementById('saveData').onclick = () => {
+        // 取得當前日期字串 YYYYMMDD
+        const now = new Date();
+        const dateStr = now.getFullYear() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0');
+
         const data = { characters, fruitAssignments, fruitInventory, fruitCategories, fruitObtained, recordName };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `${recordName || 'data'}.json`;
+        
+        // [新增] 檔名加上日期後綴
+        const fileName = recordName ? `${recordName}_${dateStr}.json` : `果實分配_${dateStr}.json`;
+        a.download = fileName;
+        
         a.click();
     };
 
