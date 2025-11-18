@@ -6,6 +6,6 @@
 
 ## 其他工具：
 
-## 抽卡統計：
+抽卡統計：
 Github 頁面：[https://github.com/emily4027/monster-strike-gacha]
 線上版本   ：[https://emily4027.github.io/monster-strike-gacha/]
