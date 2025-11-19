@@ -1,5 +1,7 @@
 # 🍏 怪物彈珠 - 果實分配助手 (Monster Strike Fruit Allocator)
 
+https://emily4027.github.io/monster-strike-fruit-assign/
+
 ### 這是一個專為《怪物彈珠》玩家設計的網頁小工具，旨在協助玩家有效管理角色的英雄果實分配、計算庫
 
 ### 存需求，並追蹤刷果實的進度。
