@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const transferSlotSelect = document.getElementById('transferSlotSelect');
     const confirmTransferBtn = document.getElementById('confirmTransferBtn');
     
-    // [修改] 更新 DOM 物件
+    // [修改] 更新 DOM 物件，新增倉庫來源選擇 DOM
     const DOM = {
         mainTitle: document.getElementById('mainTitle'),
         recordName: document.getElementById('recordName'),
@@ -64,7 +64,10 @@ document.addEventListener('DOMContentLoaded', () => {
         transferDestinationType: transferDestinationType,
         transferTargetSelect: transferTargetSelect,
         transferSlotSelect: transferSlotSelect,
-        confirmTransferBtn: confirmTransferBtn
+        confirmTransferBtn: confirmTransferBtn,
+        // 新增的倉庫來源選擇器
+        storageSourceSelector: document.getElementById('storageSourceSelector'),
+        storageSourceSlotSelect: document.getElementById('storageSourceSlotSelect')
     };
 
     function safeLoad(key, defaultValue) {
@@ -103,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sourceIndex: -1, // bank: 鳥籠索引, storage: [角色名稱, 果實索引]
         fruitName: ''
     };
+    let storageSourceSlots = {}; // 儲存倉庫角色的果實/欄位資訊
 
     // --- 2. Helper Functions ---
     function toggleModal(modal, show) {
@@ -286,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 3. 倉庫角色 (Relocation Transfer)
         storageCharacters.forEach(charName => {
             const assigned = storageAssignments[charName] || [];
-            // [修正點 1]: 確保檢查所有 4 個欄位，而不是只檢查已分配的長度
+            // 確保檢查所有 4 個欄位
             for (let index = 0; index < 4; index++) {
                 if (!assigned[index]) { // 找到空位
                     slots.storage.push({
@@ -301,44 +305,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return slots;
     }
     
-    // [修改] 轉移模態框初始化 (現在處理所有目的地)
-    function initTransferModal(fruitName, sourceType, sourceIdentifier) {
-        
+    // [新增] 獨立函式來載入目的地類型，方便在 Storage 來源選擇後重載
+    function loadDestinationTypes(fruitName) {
         const allDestinations = getAvailableDestinationSlots(fruitName);
         const hasMain = allDestinations.main.length > 0;
         const hasBank = allDestinations.bank.length > 0;
         const hasStorage = allDestinations.storage.length > 0;
         
-        if (!hasMain && !hasBank && !hasStorage) {
-            return customAlert(`目前沒有地方可以轉移「${fruitName}」：主力已滿，且 BANK 和倉庫都沒有空位。`);
-        }
-        
-        // 設置當前轉移狀態
-        currentTransfer.sourceType = sourceType;
-        currentTransfer.fruitName = fruitName;
-        currentTransfer.sourceIndex = sourceIdentifier;
-        
-        // 設置來源訊息
-        let sourceMsg = '';
-        if (sourceType === 'bank') {
-            sourceMsg = `來源：英雄 BANK (鳥籠 ${sourceIdentifier + 1}) 的「${fruitName}」`;
-        } else if (sourceType === 'storage') {
-            const [charName, slotIndex] = sourceIdentifier;
-            sourceMsg = `來源：倉庫角色「${charName}」的果實 ${slotIndex + 1} (「${fruitName}」)`;
-        }
-        DOM.transferSourceMessage.textContent = sourceMsg;
-        
-        // 重設目的地選擇
+        // 重新設置目的地類型
         DOM.transferDestinationType.innerHTML = '<option value="">-- 請選擇目標類型 --</option>';
         if (hasMain) DOM.transferDestinationType.innerHTML += `<option value="main">主力角色 (填補空缺) (${allDestinations.main.length} 需)</option>`;
         if (hasBank) DOM.transferDestinationType.innerHTML += `<option value="bank">英雄 BANK (空閒鳥籠) (${allDestinations.bank.length} 空)</option>`;
         if (hasStorage) DOM.transferDestinationType.innerHTML += `<option value="storage">倉庫角色 (空閒果實欄位) (${allDestinations.storage.length} 空)</option>`;
-        
-        DOM.transferTargetContainer.style.display = 'none'; // 預設隱藏目標選擇
+
+        // 重設目標選擇 (防止殘留)
         DOM.transferTargetSelect.innerHTML = '';
         DOM.transferSlotSelect.innerHTML = '';
+        DOM.transferTargetContainer.style.display = 'none';
         
-        // 目的地類型選擇事件監聽
+        // 目的地類型選擇事件監聽 (原邏輯，但移到這裡)
         DOM.transferDestinationType.onchange = () => {
             const type = DOM.transferDestinationType.value;
             DOM.transferTargetSelect.innerHTML = '';
@@ -348,10 +333,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!type) return;
             
             const destinations = allDestinations[type];
+            DOM.transferTargetContainer.style.display = 'block';
             
+            // Start of the destination logic
             if (type === 'bank') {
                 // BANK 目的地 (Relocation)
-                DOM.transferTargetContainer.style.display = 'block';
                 document.querySelector('#transferTargetContainer p:first-child').textContent = '目標鳥籠:';
                 document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '位置: (鳥籠只有一個位置)';
 
@@ -363,18 +349,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     DOM.transferTargetSelect.appendChild(option);
                 });
                 
-                // [修復點 1: 自動設定鳥籠位置]
                 DOM.transferSlotSelect.innerHTML = '<option value="0">唯一位置</option>';
-                DOM.transferSlotSelect.value = '0'; // 確保值被設定為 0
+                DOM.transferSlotSelect.value = '0'; 
 
-                // 如果只剩一個空位，自動選擇
                 if (destinations.length === 1) {
                     DOM.transferTargetSelect.value = destinations[0].id;
                 }
                 
             } else if (type === 'main') {
                 // 主力角色 (Consuming)
-                DOM.transferTargetContainer.style.display = 'block';
                 document.querySelector('#transferTargetContainer p:first-child').textContent = '目標主力角色:';
                 document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '目標果實欄位:';
 
@@ -409,7 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } else if (type === 'storage') {
                 // 倉庫角色 (Relocation)
-                DOM.transferTargetContainer.style.display = 'block';
                 document.querySelector('#transferTargetContainer p:first-child').textContent = '目標倉庫角色:';
                 document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '目標果實欄位:';
                 
@@ -443,6 +425,133 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
         };
+
+        if (!hasMain && !hasBank && !hasStorage) {
+            // 如果沒有任何目的地，應該在 initTransferModal 被攔截
+            DOM.transferDestinationType.innerHTML = '<option value="">無可用目標</option>';
+            DOM.transferDestinationType.disabled = true;
+        } else {
+            DOM.transferDestinationType.disabled = false;
+        }
+    }
+
+
+    // [修改] 轉移模態框初始化 (現在處理所有目的地)
+    function initTransferModal(fruitName, sourceType, sourceIdentifier) {
+        
+        // 重設轉移狀態
+        currentTransfer.sourceType = '';
+        currentTransfer.fruitName = '';
+        currentTransfer.sourceIndex = -1;
+        
+        // 重設 Modal UI
+        DOM.transferTargetContainer.style.display = 'none';
+        DOM.transferDestinationType.value = '';
+        DOM.storageSourceSelector.style.display = 'none'; // 預設隱藏倉庫來源選擇
+        DOM.transferTargetSelect.innerHTML = '';
+        DOM.transferSlotSelect.innerHTML = '';
+        
+        // --- 處理倉庫單按鈕啟動邏輯 ---
+        if (sourceType === 'storage' && fruitName === null) {
+            const charName = sourceIdentifier;
+            const assigned = storageAssignments[charName] || [];
+            
+            storageSourceSlots = {}; // 重置
+            let slotCount = 0;
+            
+            // 找出所有非空的果實欄位
+            assigned.forEach((fruit, index) => {
+                if (fruit) {
+                    slotCount++;
+                    const slotKey = `${charName}_${index}`;
+                    storageSourceSlots[slotKey] = {
+                        fruitName: fruit,
+                        slotIndex: index,
+                        text: `果實 ${index + 1} (${fruit})`
+                    };
+                }
+            });
+            
+            if (slotCount === 0) {
+                 return customAlert(`倉庫角色「${charName}」目前沒有持有任何果實。`);
+            }
+            
+            // 啟用源頭選擇介面
+            DOM.storageSourceSelector.style.display = 'block';
+            DOM.transferSourceMessage.textContent = `來源：倉庫角色「${charName}」`;
+            DOM.transferDestinationType.disabled = true; // 禁用目標選擇直到來源確定
+            
+            DOM.storageSourceSlotSelect.innerHTML = '<option value="">-- 請選擇要移出的果實 --</option>';
+            Object.keys(storageSourceSlots).forEach(key => {
+                const slot = storageSourceSlots[key];
+                // 檢查是否有目的地再列出
+                const destinations = getAvailableDestinationSlots(slot.fruitName);
+                if (destinations.main.length > 0 || destinations.bank.length > 0 || destinations.storage.length > 0) {
+                    DOM.storageSourceSlotSelect.innerHTML += `<option value="${key}">${slot.text}</option>`;
+                }
+            });
+            
+            if (DOM.storageSourceSlotSelect.options.length <= 1) { // 只有標題或沒有可轉移的
+                 return customAlert(`倉庫角色「${charName}」上所有果實都無處可轉移 (主力已獲或庫存已滿)。`);
+            }
+
+
+            // 監聽源頭選擇
+            DOM.storageSourceSlotSelect.onchange = () => {
+                const selectedKey = DOM.storageSourceSlotSelect.value;
+                if (selectedKey) {
+                    const slot = storageSourceSlots[selectedKey];
+                    
+                    // 設置臨時的 currentTransfer 狀態和 UI
+                    currentTransfer.sourceType = 'storage';
+                    currentTransfer.fruitName = slot.fruitName;
+                    currentTransfer.sourceIndex = [charName, slot.slotIndex];
+                    DOM.transferSourceMessage.textContent = `來源：倉庫角色「${charName}」的果實 ${slot.slotIndex + 1} (「${slot.fruitName}」)`;
+                    
+                    DOM.transferDestinationType.disabled = false; // 啟用目的地選擇
+                    DOM.transferDestinationType.value = ''; // 重設目的地類型
+                    DOM.transferTargetContainer.style.display = 'none';
+                    
+                    // 重新加載目的地類型選項 (因為目的地取決於果實名稱)
+                    loadDestinationTypes(slot.fruitName);
+
+                } else {
+                    DOM.transferDestinationType.disabled = true;
+                    DOM.transferDestinationType.innerHTML = '<option value="">-- 請選擇目標類型 --</option>';
+                    DOM.transferTargetContainer.style.display = 'none';
+                }
+            };
+            
+            // 如果只有一個可轉移的果實，自動選擇
+            if (DOM.storageSourceSlotSelect.options.length === 2) { 
+                DOM.storageSourceSlotSelect.value = DOM.storageSourceSlotSelect.options[1].value;
+                DOM.storageSourceSlotSelect.onchange(); 
+            }
+
+
+        } 
+        // --- 處理 BANK 或 倉庫單欄位啟動邏輯 (原邏輯) ---
+        else if (fruitName) {
+            // 設置當前轉移狀態
+            currentTransfer.sourceType = sourceType;
+            currentTransfer.fruitName = fruitName;
+            currentTransfer.sourceIndex = sourceIdentifier;
+            
+            // 設置來源訊息
+            let sourceMsg = '';
+            if (sourceType === 'bank') {
+                sourceMsg = `來源：英雄 BANK (鳥籠 ${sourceIdentifier + 1}) 的「${fruitName}」`;
+            } else if (sourceType === 'storage') {
+                const [charName, slotIndex] = sourceIdentifier;
+                sourceMsg = `來源：倉庫角色「${charName}」的果實 ${slotIndex + 1} (「${fruitName}」)`;
+            }
+            DOM.transferSourceMessage.textContent = sourceMsg;
+            
+            DOM.transferDestinationType.disabled = false; // 確保啟用
+            loadDestinationTypes(fruitName); // 載入目的地類型
+        } else {
+            return customAlert('無法啟動轉移介面：果實名稱缺失。');
+        }
         
         // 點擊確認轉移按鈕
         DOM.confirmTransferBtn.onclick = () => performTransfer();
@@ -705,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.characterListUl.appendChild(fragment);
     }
     
-    // --- 倉庫角色邏輯 (新增轉移按鈕) ---
+    // --- 倉庫角色邏輯 (回歸單一轉移按鈕) ---
     DOM.addStorageCharBtn.onclick = () => {
         const name = DOM.newStorageChar.value.trim();
         if (name && !storageCharacters.includes(name)) {
@@ -757,22 +866,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const nameCell = document.createElement('td');
             nameCell.textContent = name;
             row.appendChild(nameCell);
-
+            
+            let hasAnyFruit = false; // 檢查是否有果實可以操作
+            
             for (let i = 0; i < 4; i++) {
                 const cell = document.createElement('td');
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'flex';
+                wrapper.style.alignItems = 'center';
+                wrapper.style.gap = '5px';
+
+                // 1. 下拉選單
                 const select = document.createElement('select');
                 select.innerHTML = defaultOption + optionsHtml;
                 select.value = assigned[i] || '';
                 select.style.width = '100%';
                 
                 select.onchange = () => {
-                    // 這裡的 assigned[i] 是參考，直接修改即可
                     storageAssignments[name][i] = select.value;
                     saveData();
-                    renderAll(); // 更新所有分頁
+                    renderAll(); 
                 };
+                wrapper.appendChild(select);
                 
-                cell.appendChild(select);
+                // 檢查是否有果實
+                if (assigned[i]) {
+                    hasAnyFruit = true;
+                }
+                
+                cell.appendChild(wrapper);
                 row.appendChild(cell);
             }
 
@@ -780,52 +902,32 @@ document.addEventListener('DOMContentLoaded', () => {
             actionCell.style.display = 'flex';
             actionCell.style.gap = '5px';
             actionCell.style.alignItems = 'center';
+            actionCell.style.justifyContent = 'space-between'; // 左右對齊
             
-            // 刪除按鈕
+            // 1. 刪除按鈕
             const delBtn = document.createElement('button');
             delBtn.className = 'btn btn-red';
-            delBtn.textContent = '🗑️';
-            delBtn.style.padding = '4px 8px';
+            delBtn.textContent = '🗑️ 刪除角色';
+            delBtn.style.padding = '8px 10px';
             delBtn.onclick = async () => {
                 if (await customConfirm(`確定刪除倉庫角色「${name}」？`)) {
                     storageCharacters = storageCharacters.filter(c => c !== name);
                     delete storageAssignments[name];
                     saveData();
-                    renderAll(); // 更新所有分頁
+                    renderAll(); 
                 }
             };
-            
             actionCell.appendChild(delBtn);
 
-            // [新增/修改] 轉移按鈕
-            const hasFruit = assigned.some(f => f); // 只要有任何果實就可以轉移
-            if (hasFruit) {
+            // 2. [新增/修改] 單一轉移按鈕
+            if (hasAnyFruit) {
                 const transferBtn = document.createElement('button');
                 transferBtn.className = 'btn btn-blue';
                 transferBtn.textContent = '移出果實';
-                transferBtn.style.padding = '4px 8px';
+                transferBtn.style.padding = '8px 10px';
                 
-                transferBtn.onclick = () => {
-                    // 檢查是否有任何果實可以轉移到任何目的地
-                    const firstTransferableSlot = assigned
-                        .map((f, idx) => f ? { fruitName: f, slotIndex: idx } : null)
-                        .filter(s => s)
-                        .find(s => {
-                            const destinations = getAvailableDestinationSlots(s.fruitName);
-                            return destinations.main.length > 0 || destinations.bank.length > 0 || destinations.storage.length > 0;
-                        });
-
-                    if (!firstTransferableSlot) {
-                        return customAlert('此倉庫角色身上的果實，目前都無處可轉移 (主力已獲或庫存已滿)。');
-                    }
-                    
-                    // 使用第一個可轉移的果實來初始化 Modal (使用者會在 Modal 內選擇目標)
-                    initTransferModal(
-                        firstTransferableSlot.fruitName, 
-                        'storage', 
-                        [name, firstTransferableSlot.slotIndex]
-                    );
-                };
+                // 呼叫 initTransferModal(null, 'storage', name) 讓 Modal 處理果實選擇
+                transferBtn.onclick = () => initTransferModal(null, 'storage', name);
                 actionCell.appendChild(transferBtn);
             }
 
