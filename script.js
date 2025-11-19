@@ -1035,6 +1035,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const countB = getUnassignedFruitCount(b);
                 return countA - countB;
             });
+        } else if (sortMode === 'unassigned_desc') { // [新增] 多到少排序邏輯
+            targetChars.sort((a, b) => {
+                // 照未分配數量排序 (多到少)
+                const countA = getUnassignedFruitCount(a);
+                const countB = getUnassignedFruitCount(b);
+                return countB - countA;
+            });
         }
         // else 預設為添加時間順序 (即 characters 陣列順序)
         
