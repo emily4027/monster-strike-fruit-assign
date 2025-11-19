@@ -28,56 +28,105 @@
 
     <!-- 角色管理 -->
     <section class="section-card">
-        <h2>角色管理</h2>
+        <h2>角色管理 (主力需求方)</h2>
         <div class="control-row">
-            <input type="text" id="newCharacter" placeholder="輸入角色名稱" class="input-wide">
+            <input type="text" id="newCharacter" placeholder="輸入主力角色名稱" class="input-wide">
             <button id="addCharacter" class="btn btn-green">➕ 新增角色</button>
             <button id="showCharacterList" class="btn btn-blue">📋 角色清單 (<span id="characterCount">0</span>)</button>
             <button id="resetCharacterList" class="btn btn-red">🔄 重置角色清單</button>
         </div>
     </section>
 
-    <!-- 果實庫存管理 -->
+    <!-- 果實庫存管理 (新增分頁) -->
     <section class="section-card">
         <h2>果實庫存管理</h2>
         
-        <div class="inventory-controls">
-            <button id="resetInventory" class="btn btn-red">🔄 重置果實庫存</button>
-            <label class="checkbox-label">
-                <input type="checkbox" id="showInventoryDetail">
-                <span>顯示詳細資訊</span>
-            </label>
+        <!-- 分頁按鈕 -->
+        <div class="tabs-header">
+            <button class="tab-btn active" data-tab="tab-overview">📊 總覽</button>
+            <button class="tab-btn" data-tab="tab-bank">🐦 英雄 BANK (鳥籠)</button>
+            <button class="tab-btn" data-tab="tab-storage">📦 角色暫存箱</button>
         </div>
 
-        <div class="inventory-container">
-            <!-- 左側：加擊類 -->
-            <div class="inventory-box box-green">
-                <div class="box-title title-green">⚔️ 加擊類</div>
-                <div id="attackFruits" class="fruit-grid col-3"></div>
+        <!-- 分頁 1: 總覽 (只讀卡片顯示) -->
+        <div id="tab-overview" class="tab-content active">
+             <!-- [修改] 恢復卡片結構，只用於顯示總覽資訊 -->
+            <div class="inventory-container">
+                <!-- 左側：加擊類總覽 -->
+                <div class="inventory-box box-green">
+                    <div class="box-title title-green">⚔️ 加擊類總覽</div>
+                    <div id="attackFruitsOverview" class="fruit-grid col-3"></div>
+                </div>
+
+                <!-- 右側：其他類總覽 -->
+                <div class="inventory-box box-blue">
+                    <div class="box-title title-blue">🎯 其他類總覽</div>
+                    <div id="otherFruitsOverview" class="fruit-grid col-2"></div>
+                </div>
             </div>
-
-            <!-- 右側：其他類 -->
-            <div class="inventory-box box-blue">
-                <div class="box-title title-blue">🎯 其他類</div>
-                <div id="otherFruits" class="fruit-grid col-2"></div>
+            
+            <div style="text-align: center; margin-top: 15px; color: #666; font-size: 13px;">
+                ※ 總庫存 = 英雄 BANK + 角色暫存箱。
+            </div>
+            <div class="add-fruit-row">
+                <strong>新增果實類型：</strong>
+                <input type="text" id="newFruitName" placeholder="果實名稱">
+                <select id="newFruitCategory">
+                    <option value="加擊類">加擊類</option>
+                    <option value="其他">其他</option>
+                </select>
+                <button id="addFruit" class="btn btn-green">➕ 新增果實</button>
+                <button id="deleteFruitBtn" class="btn btn-red">🗑️ 刪除果實</button>
             </div>
         </div>
 
-        <div class="add-fruit-row">
-            <strong>新增果實類型：</strong>
-            <input type="text" id="newFruitName" placeholder="果實名稱">
-            <select id="newFruitCategory">
-                <option value="加擊類">加擊類</option>
-                <option value="其他">其他</option>
-            </select>
-            <button id="addFruit" class="btn btn-green">➕ 新增果實</button>
-            <button id="deleteFruitBtn" class="btn btn-red">🗑️ 刪除果實</button>
+        <!-- 分頁 2: 英雄 BANK (下拉選單 + 轉移按鈕) -->
+        <div id="tab-bank" class="tab-content">
+            <h3 style="text-align: center; margin-bottom: 15px;">鳥籠數量：7 個</h3>
+            <div class="bank-container">
+                <!-- BANK 果實選擇將在這裡渲染 -->
+                <div id="bankFruitSelectors" class="fruit-grid col-3">
+                    <!-- JS 會在這裡填充 7 個鳥籠的下拉選單 -->
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="resetBank" class="btn btn-red">🔄 重置所有鳥籠</button>
+            </div>
         </div>
+
+        <!-- 分頁 3: 角色暫存箱 (新增轉移按鈕) -->
+        <div id="tab-storage" class="tab-content">
+            <div class="control-row" style="margin-bottom: 20px;">
+                <input type="text" id="newStorageChar" placeholder="輸入倉庫角色名稱 (例: 4星角)" class="input-wide">
+                <button id="addStorageChar" class="btn btn-green">➕ 新增倉庫角色</button>
+                <input type="text" id="searchStorageChar" placeholder="🔍 搜尋倉庫..." style="margin-left: 10px;">
+            </div>
+            
+            <div class="table-container">
+                <table id="storageTable">
+                    <thead>
+                        <tr>
+                            <th>倉庫角色</th>
+                            <th>持有果實 1</th>
+                            <th>持有果實 2</th>
+                            <th>持有果實 3</th>
+                            <th>持有果實 4</th>
+                            <th style="width: 140px;">操作</th> <!-- 擴大操作欄位 -->
+                        </tr>
+                    </thead>
+                    <tbody id="storageTableBody"></tbody>
+                </table>
+            </div>
+            <div style="text-align: center; margin-top: 15px; color: #666; font-size: 13px;">
+                ※ 這裡的角色僅用於「暫存果實」，其持有的果實會自動計入總庫存量。
+            </div>
+        </div>
+
     </section>
 
     <!-- 果實分配 -->
     <section class="section-card">
-        <h2>果實分配</h2>
+        <h2>果實分配 (主力區)</h2>
         <div style="text-align: center; margin-bottom: 15px;">
              <button id="resetAssignments" class="btn btn-red">🔄 重置角色果實</button>
         </div>
@@ -126,12 +175,27 @@
         </div>
     </section>
 
-    <!-- [新增] 回工具箱首頁懸浮按鈕 -->
-    <a href="https://emily4027.github.io/monster-strike-toolbox/" class="back-home-btn" title="回工具箱首頁">
-        🏠 工具箱
-    </a>
+    <!-- 懸浮工具箱 -->
+    <div class="toolbox-container">
+        <div class="toolbox-header">
+            🧰 工具箱
+        </div>
+        <div class="toolbox-list">
+            <a href="https://emily4027.github.io/monster-strike-toolbox/" class="toolbox-link">
+                🏠 工具箱首頁
+            </a>
+            <a href="https://emily4027.github.io/monster-strike-gacha/" class="toolbox-link">
+                🎰 抽卡模擬
+            </a>
+            <div class="toolbox-link active">
+                🍎 果實分配
+            </div>
+        </div>
+    </div>
 
     <!-- 彈出視窗 (Modals) -->
+    
+    <!-- 1. 角色清單 Modal -->
     <div id="characterModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -143,6 +207,7 @@
         </div>
     </div>
 
+    <!-- 2. 刪除果實 Modal -->
     <div id="deleteFruitModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -160,6 +225,45 @@
         </div>
     </div>
 
+    <!-- 3. 果實轉移 Modal (New! 支援多目的地) -->
+    <div id="fruitTransferModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>果實轉移</h3>
+                <span class="close-modal transfer-close">&times;</span>
+            </div>
+            <p id="transferSourceMessage" style="font-weight: bold;"></p>
+            
+            <hr style="margin: 15px 0;">
+
+            <p style="margin-top: 15px; font-weight: bold;">選擇轉移目標：</p>
+            
+            <!-- 新增目的地選擇 -->
+            <select id="transferDestinationType" class="full-width-input" style="margin-bottom: 10px;">
+                <option value="">-- 請選擇目標類型 --</option>
+                <option value="main">主力角色 (填補空缺)</option>
+                <option value="bank">英雄 BANK (空閒鳥籠)</option>
+                <option value="storage">倉庫角色 (空閒果實欄位)</option>
+            </select>
+            
+            <!-- 目標角色/鳥籠/欄位選擇容器 -->
+            <div id="transferTargetContainer">
+                <p style="margin-top: 15px;">目標容器:</p>
+                <select id="transferTargetSelect" class="full-width-input"></select>
+                
+                <p style="margin-top: 15px;">目標欄位/位置:</p>
+                <select id="transferSlotSelect" class="full-width-input"></select>
+            </div>
+
+            
+            <div class="modal-footer">
+                <button class="transfer-close btn btn-gray">取消</button>
+                <button id="confirmTransferBtn" class="btn btn-green">確認轉移</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 警告/提示 Modal -->
     <div id="alertModal" class="modal">
         <div class="modal-content small-modal">
             <h3 id="alertTitle">提示</h3>
@@ -170,6 +274,7 @@
         </div>
     </div>
 
+    <!-- 5. 確認 Modal -->
     <div id="confirmModal" class="modal">
         <div class="modal-content small-modal">
             <h3 id="confirmTitle">請確認</h3>
