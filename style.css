@@ -101,7 +101,6 @@ input[type="text"]:focus, select:focus {
 /* 按鈕顏色 */
 .btn-green { background-color: #28a745; }
 .btn-blue { background-color: #007bff; }
-/* [修改] 將原本刺眼的 #dc3545 改為較深沉舒適的 #b92b27 */
 .btn-red { background-color: #b92b27; }
 .btn-indigo { background-color: #6610f2; }
 .btn-teal { background-color: #20c997; }
@@ -126,6 +125,19 @@ input[type="text"]:focus, select:focus {
 }
 
 .checkbox-label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; font-size: 14px; }
+
+/* [修改] 排序選單樣式 - 加寬 */
+.sort-select {
+    width: 260px; /* 從 160px 增加到 260px，確保文字不擁擠 */
+    min-width: 260px;
+    flex-grow: 0; 
+}
+
+/* [修改] 搜尋欄寬度調整 */
+.search-row input[type="text"]#searchCharacter {
+    flex-grow: 3; /* 佔據剩餘空間 */
+    min-width: 150px; /* 稍微調小最小寬度，以防在小螢幕被擠壓 */
+}
 
 /* --- 庫存 --- */
 .inventory-container { 
@@ -182,7 +194,7 @@ input[type="text"]:focus, select:focus {
     text-align: center; /* 名稱置中 */
 }
 
-/* [新增] 總覽卡片底部樣式 - 確保三個數據水平對齊 */
+/* 總覽卡片底部樣式 */
 .overview-footer {
     display: flex;
     justify-content: space-between;
@@ -209,18 +221,6 @@ input[type="text"]:focus, select:focus {
 .diff-more { color: #007bff; }
 .diff-less { color: #b92b27; }
 
-/* 讓下方的需求/庫存資訊並排 (舊版，新版已由 script.js 內聯控制) */
-/* .item-content { 
-    display: flex; 
-    width: 100%; 
-    justify-content: space-between; 
-    align-items: center; 
-    gap: 10px; 
-    flex-shrink: 0;
-}
-.item-stats { font-size: 13px; color: #666; } */
-
-
 /* --- 快速分配 --- */
 .preset-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
 .preset-section h3 { margin: 0 0 10px 0; font-size: 16px; }
@@ -229,13 +229,37 @@ input[type="text"]:focus, select:focus {
 
 /* --- 表格樣式 --- */
 .table-container { overflow-x: auto; }
-table { width: 100%; min-width: 800px; border-collapse: collapse; margin-top: 10px; background: white; border: 1px solid #e5e7eb; }
+
+/* 限制表格高度的滾動容器 */
+.table-scroll-container {
+    max-height: 480px; /* 增加高度 */
+    overflow-y: auto;
+    margin-top: 10px;
+    border: 1px solid #e5e7eb; /* 與表格邊框保持一致 */
+    border-radius: 5px;
+}
+
+table { 
+    width: 100%; 
+    min-width: 800px; 
+    border-collapse: collapse; 
+    background: white; 
+    margin-top: 0; /* 移除原本表格的 top margin */
+    border: none; /* 讓容器控制邊框 */
+}
 #overviewTable { min-width: 600px; } /* 總覽表格可以小一點 */
 #overviewTable td { text-align: center; } /* 總覽表格的數字置中 */
 
 th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
 
-th { background-color: #343a40; color: white; border-right: 1px solid #4b5563; }
+th { 
+    background-color: #343a40; 
+    color: white; 
+    border-right: 1px solid #4b5563; 
+    position: sticky; /* 表格標題固定 */
+    top: 0;
+    z-index: 10;
+}
 th:last-child { border-right: none; }
 
 td { border-right: 1px solid #e5e7eb; font-size: 15px; vertical-align: middle; }
@@ -351,9 +375,8 @@ tr.row-completed td:first-child {
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .full-width-input { width: 100%; margin-bottom: 10px; }
 
-/* [新增] Modal 內下拉選單的選項優化 */
+/* Modal 內下拉選單的選項優化 */
 .modal-content select option {
-    /* 讓選項文本可以自動換行，但瀏覽器支援性不佳，作為備選 */
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;

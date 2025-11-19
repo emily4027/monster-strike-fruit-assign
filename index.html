@@ -45,12 +45,12 @@
         <div class="tabs-header">
             <button class="tab-btn active" data-tab="tab-overview">📊 總覽</button>
             <button class="tab-btn" data-tab="tab-bank">🐦 英雄 BANK (鳥籠)</button>
-            <button class="tab-btn" data-tab="tab-storage">📦 角色暫存箱</button>
+            <button class="tab-btn" data-tab="tab-storage">📦 角色暫存箱 (<span id="storageCharCount">0</span> 隻)</button>
         </div>
 
         <!-- 分頁 1: 總覽 (只讀卡片顯示) -->
         <div id="tab-overview" class="tab-content active">
-             <!-- [修改] 恢復卡片結構，只用於顯示總覽資訊 -->
+             <!-- 卡片結構，只用於顯示總覽資訊 -->
             <div class="inventory-container">
                 <!-- 左側：加擊類總覽 -->
                 <div class="inventory-box box-green">
@@ -126,13 +126,21 @@
 
     <!-- 果實分配 -->
     <section class="section-card">
-        <h2>果實分配 (主力區)</h2>
+        <h2>果實分配 (主力區) (<span id="uncompletedCharCount">0</span> 待辦)</h2>
         <div style="text-align: center; margin-bottom: 15px;">
              <button id="resetAssignments" class="btn btn-red">🔄 重置角色果實</button>
         </div>
 
         <div class="search-row">
-            <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱或果實...">
+            <!-- 搜尋欄 -->
+            <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱或果實..." class="input-wide">
+            
+            <!-- 排序選單 -->
+            <select id="sortCharacterBy" class="sort-select">
+                <option value="default">預設排序 (添加時間)</option>
+                <option value="unassigned_asc">未完成分配數量 (少到多)</option>
+            </select>
+            
             <div class="checkbox-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="filterModeCheckbox">
@@ -159,7 +167,8 @@
             </div>
         </div>
 
-        <div class="table-container">
+        <!-- 滾動容器 -->
+        <div class="table-scroll-container">
             <table id="fruitTable">
                 <thead>
                     <tr>
@@ -234,7 +243,7 @@
             </div>
             <p id="transferSourceMessage" style="font-weight: bold;"></p>
             
-            <!-- [新增] 倉庫果實來源選擇區 -->
+            <!-- 倉庫果實來源選擇區 -->
             <div id="storageSourceSelector" style="margin-bottom: 15px; display: none;">
                  <p style="margin-top: 15px; font-weight: bold;">選擇移出果實欄位:</p>
                  <select id="storageSourceSlotSelect" class="full-width-input"></select>

@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const transferSlotSelect = document.getElementById('transferSlotSelect');
     const confirmTransferBtn = document.getElementById('confirmTransferBtn');
     
-    // [修改] 更新 DOM 物件，新增倉庫來源選擇 DOM
+    // [修改] 更新 DOM 物件，新增倉庫來源選擇 DOM 和計數器
     const DOM = {
         mainTitle: document.getElementById('mainTitle'),
         recordName: document.getElementById('recordName'),
@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
         addStorageCharBtn: document.getElementById('addStorageChar'),
         searchStorageChar: document.getElementById('searchStorageChar'),
         storageTableBody: document.getElementById('storageTableBody'),
+        // 倉庫角色計數器
+        storageCharCount: document.getElementById('storageCharCount'), 
         
         // 分配區
         fruitTableBody: document.getElementById('fruitTableBody'),
@@ -47,6 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
         filterModeCheckbox: document.getElementById('filterModeCheckbox'),
         hideCompletedCheckbox: document.getElementById('hideCompletedCheckbox'),
         presetCharacterSelect: document.getElementById('presetCharacter'),
+        // 未完成主力角色計數器
+        uncompletedCharCount: document.getElementById('uncompletedCharCount'),
+        // 排序下拉選單
+        sortCharacterBy: document.getElementById('sortCharacterBy'),
         
         // Modal
         characterModal: document.getElementById('characterModal'),
@@ -57,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         alertModal: document.getElementById('alertModal'),
         confirmModal: document.getElementById('confirmModal'),
         
-        // [新增] 轉移 Modal 相關
+        // 轉移 Modal 相關
         fruitTransferModal: fruitTransferModal,
         transferSourceMessage: transferSourceMessage,
         transferTargetContainer: transferTargetContainer,
@@ -65,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         transferTargetSelect: transferTargetSelect,
         transferSlotSelect: transferSlotSelect,
         confirmTransferBtn: confirmTransferBtn,
-        // 新增的倉庫來源選擇器
+        // 倉庫來源選擇器
         storageSourceSelector: document.getElementById('storageSourceSelector'),
         storageSourceSlotSelect: document.getElementById('storageSourceSlotSelect')
     };
@@ -663,6 +669,60 @@ document.addEventListener('DOMContentLoaded', () => {
         if (DOM.mainTitle) DOM.mainTitle.textContent = name;
         if (DOM.recordName) DOM.recordName.value = recordName;
     }
+    
+    // [新增] 檢查角色是否已完成分配的邏輯
+    function isCharacterCompleted(charName) {
+        const assigned = fruitAssignments[charName] || [];
+        const obtained = fruitObtained[charName] || [];
+        
+        let hasAssignment = false;
+        let allDone = true;
+        
+        for(let i = 0; i < 4; i++) {
+            if (assigned[i]) {
+                hasAssignment = true;
+                if (!obtained[i]) {
+                    allDone = false;
+                    break;
+                }
+            }
+        }
+        // 只有當「有分配」且「所有分配都已打勾」時，才算完成。
+        return hasAssignment && allDone; 
+    }
+    
+    // [新增] 取得未完成分配的果實數量
+    function getUnassignedFruitCount(charName) {
+        const assigned = fruitAssignments[charName] || [];
+        const obtained = fruitObtained[charName] || [];
+        let count = 0;
+        
+        for (let i = 0; i < 4; i++) {
+            // 計算「已分配」但「未獲得/未打勾」的數量
+            if (assigned[i] && !obtained[i]) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    // [新增] 取得篩選過的主力角色清單
+    function getFilteredCharacters() {
+        const shouldHideCompleted = DOM.hideCompletedCheckbox.checked;
+        
+        if (!shouldHideCompleted) {
+            return characters;
+        }
+        
+        // 篩選出未完成的角色
+        return characters.filter(charName => !isCharacterCompleted(charName));
+    }
+    
+    // [新增] 取得未完成分配的角色數量
+    function getUncompletedCharacterCount() {
+        return characters.filter(charName => !isCharacterCompleted(charName)).length;
+    }
+
 
     function renderAll() {
         updateTitle();
@@ -671,7 +731,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBankSelectors(); // 英雄 BANK
         renderStorageTable(); // 角色暫存箱
         renderTable(); // 主力分配表
-        updatePresetCharacterSelect();
+        updatePresetCharacterSelect(); // [修改] 確保每次刷新時都更新快速分配選單
+        
+        // [新增] 更新計數器
+        if (DOM.storageCharCount) DOM.storageCharCount.textContent = storageCharacters.length;
+        if (DOM.uncompletedCharCount) DOM.uncompletedCharCount.textContent = getUncompletedCharacterCount();
     }
     
     // 渲染總覽卡片 (只讀)
@@ -699,11 +763,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fruitCategories['其他']) {
             fruitCategories['其他'].forEach(f => {
                 const totalStock = stockData[f] || 0;
-                if ((usageData[f]?.total || 0) > 0 || totalStock > 0) {
-                    fragmentOther.appendChild(createOverviewItem(f, usageData[f], totalStock));
-                }
-            });
-        }
+                    if ((usageData[f]?.total || 0) > 0 || totalStock > 0) {
+                        fragmentOther.appendChild(createOverviewItem(f, usageData[f], totalStock));
+                    }
+                });
+            }
 
         DOM.attackFruitsOverview.appendChild(fragmentAttack);
         DOM.otherFruitsOverview.appendChild(fragmentOther);
@@ -939,21 +1003,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- 主力分配表邏輯 (僅保留) ---
+    // --- 主力分配表邏輯 (包含篩選和排序邏輯) ---
     function renderTable() {
         DOM.fruitTableBody.innerHTML = '';
         const searchTerm = DOM.searchInput.value.trim().toLowerCase();
         const shouldFilter = DOM.filterModeCheckbox.checked;
         const shouldHideCompleted = DOM.hideCompletedCheckbox.checked;
+        const sortMode = DOM.sortCharacterBy.value; // 取得排序模式
         
         let targetChars = characters;
+        
+        // 步驟 1: 處理「隱藏已完成分配」篩選
+        if (shouldHideCompleted) {
+            targetChars = targetChars.filter(charName => !isCharacterCompleted(charName));
+        }
+
+        // 步驟 2: 處理搜尋篩選
         if (shouldFilter && searchTerm) {
-            targetChars = characters.filter(name => {
+            targetChars = targetChars.filter(name => {
                 if (name.toLowerCase().includes(searchTerm)) return true;
                 const assigned = fruitAssignments[name] || [];
                 return assigned.some(fruit => fruit && fruit.toLowerCase().includes(searchTerm));
             });
         }
+
+        // 步驟 3: 處理排序
+        if (sortMode === 'unassigned_asc') {
+            targetChars.sort((a, b) => {
+                // 照未分配數量排序 (少到多)
+                const countA = getUnassignedFruitCount(a);
+                const countB = getUnassignedFruitCount(b);
+                return countA - countB;
+            });
+        }
+        // else 預設為添加時間順序 (即 characters 陣列順序)
         
         if (targetChars.length === 0) {
             DOM.fruitTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 15px;">無符合資料</td></tr>';
@@ -969,20 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const assigned = fruitAssignments[name] || [];
             if (!fruitObtained[name]) fruitObtained[name] = [];
             
-            let hasAssignment = false;
-            let allDone = true;
-            for(let i=0; i<4; i++) {
-                if (assigned[i]) {
-                    hasAssignment = true;
-                    if (!fruitObtained[name][i]) {
-                        allDone = false;
-                        break;
-                    }
-                }
-            }
-            const finished = hasAssignment && allDone;
-
-            if (shouldHideCompleted && finished) return;
+            const finished = isCharacterCompleted(name);
 
             const row = document.createElement('tr');
             if (finished) row.classList.add('row-completed');
@@ -1034,20 +1104,28 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.fruitTableBody.appendChild(fragment);
     }
 
+    // [修改] 讓快速組合選單使用篩選後的角色列表
     function updatePresetCharacterSelect() {
+        // [修改] 使用 getFilteredCharacters() 取得角色列表
+        const filtered = getFilteredCharacters(); 
+        
         const term = DOM.searchInput.value.trim().toLowerCase();
         const currentVal = DOM.presetCharacterSelect.value;
         DOM.presetCharacterSelect.innerHTML = '<option value="">選擇角色</option>';
         
-        const filtered = term ? characters.filter(n => n.toLowerCase().includes(term)) : characters;
-        filtered.forEach(n => {
+        // 如果有搜尋字詞，需要進一步篩選
+        const searchFiltered = term 
+            ? filtered.filter(n => n.toLowerCase().includes(term)) 
+            : filtered;
+            
+        searchFiltered.forEach(n => {
             const opt = document.createElement('option');
             opt.value = n; opt.textContent = n;
             DOM.presetCharacterSelect.appendChild(opt);
         });
         
-        if (filtered.includes(currentVal)) DOM.presetCharacterSelect.value = currentVal;
-        else if (filtered.length === 1) DOM.presetCharacterSelect.value = filtered[0];
+        if (searchFiltered.includes(currentVal)) DOM.presetCharacterSelect.value = currentVal;
+        else if (searchFiltered.length === 1) DOM.presetCharacterSelect.value = searchFiltered[0];
     }
 
     DOM.recordName.oninput = () => { recordName = DOM.recordName.value; saveData(); updateTitle(); };
@@ -1120,7 +1198,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     DOM.searchInput.oninput = () => { renderTable(); updatePresetCharacterSelect(); };
     DOM.filterModeCheckbox.onchange = () => renderTable();
-    DOM.hideCompletedCheckbox.onchange = () => renderTable();
+    
+    // [修改] 隱藏完成的勾選框改變時，同時更新表格和快速分配選單
+    DOM.hideCompletedCheckbox.onchange = () => { renderTable(); updatePresetCharacterSelect(); };
+    
+    // [新增] 排序方式改變時，更新表格和快速分配選單
+    DOM.sortCharacterBy.onchange = () => { renderTable(); updatePresetCharacterSelect(); };
+    
     DOM.modalCharacterSearch.oninput = () => renderCharacters(DOM.modalCharacterSearch.value);
 
     document.getElementById('addCharacter').onclick = () => {
