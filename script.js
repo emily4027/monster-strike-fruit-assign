@@ -34,6 +34,12 @@ document.addEventListener('DOMContentLoaded', () => {
         newCharacter: document.getElementById('newCharacter'),
         characterCount: document.getElementById('characterCount'),
         
+        // [新增] 使用者資訊相關 DOM
+        userInfo: document.getElementById('user-info'),
+        userAvatar: document.getElementById('user-avatar'),
+        userDisplayName: document.getElementById('user-display-name'),
+        logoutBtn: document.getElementById('logout-btn'),
+
         // Tab 相關
         tabBtns: document.querySelectorAll('.tab-btn'),
         tabContents: document.querySelectorAll('.tab-content'),
@@ -352,6 +358,23 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.saveSlotSelect.onchange = (e) => {
             changeSlot(e.target.value);
         };
+        
+        // [新增] 綁定登出事件
+        if (DOM.logoutBtn) {
+            DOM.logoutBtn.onclick = () => {
+                const { signOut } = window.firebaseModules;
+                if (auth && signOut) {
+                    signOut(auth).then(() => {
+                         customAlert("已成功登出", "登出");
+                    }).catch((error) => {
+                         console.error("Sign out error", error);
+                    });
+                } else {
+                    // 離線模式或未初始化時的登出處理（如果有的話）
+                    location.reload();
+                }
+            };
+        }
 
         // 等待 Firebase SDK 載入
         const checkFirebase = setInterval(async () => {
@@ -367,8 +390,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                          console.log(`[AUTH STATUS] User signed in. UID: ${user.uid}`);
+                         
+                         // [新增] 顯示使用者資訊
+                         if (DOM.userInfo) {
+                             DOM.userInfo.style.display = 'flex';
+                             // 設定顯示名稱，優先使用 displayName，若無則顯示 "使用者"
+                             DOM.userDisplayName.textContent = user.displayName || "使用者";
+                             
+                             // 設定頭像，若無 photoURL 則使用預設圖片
+                             // 這裡使用一個通用的 placeholder 圖片作為備案
+                             const defaultAvatar = "https://ui-avatars.com/api/?name=" + (user.displayName || "User") + "&background=random";
+                             DOM.userAvatar.src = user.photoURL || defaultAvatar;
+                         }
                     } else {
                          console.log(`[AUTH STATUS] No user signed in. (UID: null)`);
+                         
+                         // [新增] 隱藏使用者資訊
+                         if (DOM.userInfo) {
+                             DOM.userInfo.style.display = 'none';
+                             DOM.userDisplayName.textContent = '';
+                             DOM.userAvatar.src = '';
+                         }
                     }
                     
                     if (user) {
@@ -443,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderAll();
                 updateTitle(); // [新增]
             }
-        }, 1000);
+        }, 3000);
     }
 
 
@@ -1460,4 +1502,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // 啟動 App
     initApp();
 });
-

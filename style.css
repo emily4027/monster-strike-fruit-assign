@@ -35,6 +35,50 @@ h3 { margin: 0; font-size: 18px; font-weight: bold; }
 .status-saving { background-color: #ffc107; box-shadow: 0 0 5px #ffc107; }
 .status-offline { background-color: #6c757d; }
 
+/* [新增] 使用者資訊 UI 樣式 (手動實作，不依賴 Bootstrap) */
+#user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    padding: 5px 15px;
+    border-radius: 25px; /* 膠囊狀圓角 */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* 輕微陰影 */
+    border: 1px solid #eee; /* 輕微邊框增加層次 */
+}
+
+.user-name {
+    font-weight: 700;
+    color: #333;
+    font-size: 14px;
+    margin-right: 15px; /* 替代 Bootstrap me-3 */
+}
+
+.user-avatar {
+    width: 30px;
+    height: 30px;
+    object-fit: cover;
+    border-radius: 50%; /* 圓形頭像 */
+    border: 1px solid #ddd;
+    margin-right: 8px; /* 替代 Bootstrap me-2 */
+}
+
+.btn-logout {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #6c757d;
+    color: #6c757d;
+    background-color: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-logout:hover {
+    background-color: #6c757d;
+    color: white;
+}
+
 
 /* --- 區塊卡片 --- */
 header, .section-card {
@@ -127,6 +171,7 @@ input[type="text"]:focus, select:focus {
 .btn-indigo { background-color: #6610f2; }
 .btn-teal { background-color: #20c997; }
 .btn-gray { background-color: #6c757d; }
+
 
 /* --- 排版工具 --- */
 .header-controls, .control-row, .inventory-controls, .search-row, .add-fruit-row {

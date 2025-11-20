@@ -18,16 +18,29 @@
     <header>
         <h1 id="mainTitle">果實分配</h1>
         
-        <!-- [新增] 雲端狀態指示器 -->
+        <!-- 雲端狀態指示器 -->
         <div id="cloudStatus" class="cloud-status" style="display: none;">
             <span class="status-dot"></span>
             <span id="cloudStatusText">連線中...</span>
         </div>
-        <!-- [新增] 錯誤訊息顯示區 (預設隱藏) -->
+        
+        <!-- 錯誤訊息顯示區 -->
         <div id="authErrorMsg" style="display: none; color: #b92b27; font-size: 12px; text-align: center; margin-bottom: 10px; padding: 5px; background: #ffe6e6; border-radius: 4px;"></div>
 
+        <!-- [修改] 使用者資訊顯示區 (移除 Bootstrap class，改用自訂樣式) -->
+        <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+            <div id="user-info" style="display: none;">
+                <!-- 使用者頭像 -->
+                <img id="user-avatar" src="" alt="User" class="user-avatar">
+                <!-- 使用者名稱 -->
+                <span id="user-display-name" class="user-name"></span>
+                <!-- 登出按鈕 -->
+                <button type="button" id="logout-btn" class="btn btn-logout">登出</button>
+            </div>
+        </div>
+
         <div class="header-controls">
-            <!-- [新增] 存檔切換選單 -->
+            <!-- 存檔切換選單 -->
             <select id="saveSlotSelect" class="save-slot-select">
                 <option value="default">📁 存檔 1 (預設)</option>
                 <option value="slot2">📁 存檔 2</option>
@@ -324,7 +337,7 @@
     <!-- 🎯 引入 Firebase SDK (與 Toolbox.html 保持一致) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // ⚠️ 您的 Firebase 配置
@@ -349,7 +362,7 @@
         window.firebaseApp = app;
         window.firebaseAuth = auth;
         window.firebaseDb = db;
-        window.firebaseModules = { doc, getDoc, setDoc };
+        window.firebaseModules = { doc, getDoc, setDoc, signOut }; // [新增] signOut
         window.envAppId = appId; // 暴露 App ID 給 JS
 
         // [關鍵修正] 掛載 onAuthStateChanged 和 signInWithCustomToken
