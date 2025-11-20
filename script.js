@@ -9,6 +9,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const BANK_SLOTS = 7; // 固定 7 個鳥籠
 
+    // [新增] 存檔預設名稱對照表
+    const SLOT_DEFAULTS = {
+        'default': '存檔 1 (預設)',
+        'slot2': '存檔 2',
+        'slot3': '存檔 3',
+        'slot4': '存檔 4',
+        'slot5': '存檔 5'
+    };
+
     // 快取 DOM 元素
     const fruitTransferModal = document.getElementById('fruitTransferModal');
     const transferSourceMessage = document.getElementById('transferSourceMessage');
@@ -140,6 +149,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return `fruit_assign_${currentSlot}`;
     }
 
+    // [新增] 更新下拉選單的顯示名稱 (從快取讀取)
+    function updateSlotOptions() {
+        const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
+        const options = DOM.saveSlotSelect.options;
+        
+        for (let i = 0; i < options.length; i++) {
+            const opt = options[i];
+            const savedName = cache[opt.value];
+            
+            // 如果有自訂名稱則顯示，否則顯示預設名稱
+            if (savedName) {
+                opt.textContent = `📁 ${savedName}`;
+            } else {
+                opt.textContent = `📁 ${SLOT_DEFAULTS[opt.value] || opt.value}`;
+            }
+        }
+    }
+
     // 讀取 LocalStorage (支援多存檔)
     function loadFromLocalStorage() {
         try {
@@ -183,7 +210,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveData() {
         // 如果是雲端模式，使用 Debounce 寫入 Firestore
         if (isCloudMode && currentUser && db) {
-            updateCloudStatus('saving', `儲存中 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})...`);
+            // 讀取目前的選項文字作為狀態顯示
+            const currentOptionText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text;
+            updateCloudStatus('saving', `儲存中 (${currentOptionText})...`);
             
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
@@ -279,19 +308,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     storageCharacters = data.storageCharacters || [];
                     storageAssignments = data.storageAssignments || {};
                     recordName = data.recordName || '';
+                    
+                    // [新增] 載入資料後，立即更新該 Slot 的名稱快取
+                    // 這樣切換回來時就能看到正確的名稱
+                    updateTitle(); 
+
                     updateCloudStatus('online', `已載入: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}`);
                 } else {
                     // 該 Slot 尚無雲端資料，嘗試讀取本地 (若是第一次用這個 Slot)
                     loadFromLocalStorage();
+                    updateTitle(); // 更新預設或本地名稱
                     updateCloudStatus('online', `新存檔: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}`);
                 }
             } catch(e) {
                 console.error("[CLOUD] 切換讀取失敗", e);
                 loadFromLocalStorage(); // 降級
+                updateTitle();
                 updateCloudStatus('offline', '切換讀取失敗，使用本地');
             }
         } else {
             loadFromLocalStorage();
+            updateTitle(); // 更新名稱
             localStorage.setItem('lastSelectedSlot', currentSlot);
         }
         
@@ -307,6 +344,9 @@ document.addEventListener('DOMContentLoaded', () => {
             currentSlot = lastSlot;
             DOM.saveSlotSelect.value = lastSlot;
         }
+        
+        // [新增] 程式啟動時，先更新一次選單文字 (從快取)
+        updateSlotOptions();
 
         // 綁定切換事件
         DOM.saveSlotSelect.onchange = (e) => {
@@ -326,9 +366,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                         console.log(`[AUTH STATUS] User signed in. UID: ${user.uid}`);
+                    } else {
+                         console.log(`[AUTH STATUS] No user signed in. (UID: null)`);
+                    }
+                    
+                    if (user) {
                         // === 使用者已登入 (雲端模式) ===
                         currentUser = user;
-                        isCloudMode = true; // [關鍵] 帳號登入成功，切換為雲端模式
+                        isCloudMode = true; 
                         updateCloudStatus('saving', '正在從雲端載入...');
 
                         try {
@@ -350,6 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 recordName = data.recordName || '';
                                 
                                 console.log("[CLOUD] 雲端資料載入成功");
+                                updateTitle(); // [新增] 更新標題與快取名稱
                                 updateCloudStatus('online', `雲端就緒 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
                             } else {
                                 // 2. 雲端無資料 -> 檢查 LocalStorage (僅限 default Slot 才做遷移檢查)
@@ -359,6 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     customAlert(`歡迎！已自動將您原本在瀏覽器的資料備份至雲端帳號 (${user.uid})。`);
                                 } else {
                                     // 雲端無資料且無需遷移
+                                    updateTitle(); // [新增]
                                     updateCloudStatus('online', '雲端就緒 (新資料)');
                                 }
                             }
@@ -367,14 +415,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             customAlert("讀取雲端資料失敗，將暫時使用離線模式。");
                             loadFromLocalStorage();
                             isCloudMode = false;
+                            updateTitle(); // [新增]
                             updateCloudStatus('offline', '雲端讀取錯誤'); 
                         }
                     } else {
                         // === 使用者未登入 (離線模式) ===
-                        // 因為我們移除了匿名登入，所以如果 Custom Token 失敗，就會執行這裡
                         isCloudMode = false;
                         updateCloudStatus('offline', '未偵測到帳戶 (離線模式)');
                         loadFromLocalStorage();
+                        updateTitle(); // [新增]
                     }
 
                     // 無論哪種模式，最後都要渲染畫面
@@ -392,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentUser && characters.length === 0) {
                 loadFromLocalStorage();
                 renderAll();
+                updateTitle(); // [新增]
             }
         }, 3000);
     }
@@ -825,6 +875,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = recordName ? `${recordName}的果實分配` : '果實分配';
         if (DOM.mainTitle) DOM.mainTitle.textContent = name;
         if (DOM.recordName) DOM.recordName.value = recordName;
+        
+        // [新增] 同步更新下拉選單名稱 (寫入 LocalStorage 快取)
+        const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
+        if (recordName && recordName.trim() !== '') {
+            cache[currentSlot] = recordName;
+        } else {
+            delete cache[currentSlot]; // 如果名稱清空，則移除快取，回復預設
+        }
+        localStorage.setItem('slot_names_cache', JSON.stringify(cache));
+        updateSlotOptions();
     }
     
     function isCharacterCompleted(charName) {
@@ -1362,6 +1422,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 重置記憶體變數
             clearMemoryData();
+            
+            // [新增] 清除該 Slot 的名稱快取
+            const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
+            delete cache[currentSlot];
+            localStorage.setItem('slot_names_cache', JSON.stringify(cache));
+            updateSlotOptions();
 
             // 如果是雲端模式，也要清空雲端資料
             if (isCloudMode && currentUser && db) {
