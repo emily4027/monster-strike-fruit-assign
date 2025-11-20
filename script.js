@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderAll();
                 updateTitle(); // [新增]
             }
-        }, 3000);
+        }, 1000);
     }
 
 
@@ -1460,3 +1460,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // 啟動 App
     initApp();
 });
+
