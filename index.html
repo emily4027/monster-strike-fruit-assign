@@ -17,11 +17,19 @@
     <!-- 標頭區 -->
     <header>
         <h1 id="mainTitle">果實分配</h1>
+        
+        <!-- [新增] 雲端狀態指示器 -->
+        <div id="cloudStatus" class="cloud-status" style="display: none;">
+            <span class="status-dot"></span>
+            <span id="cloudStatusText">連線中...</span>
+        </div>
+
         <div class="header-controls">
             <input type="text" id="recordName" placeholder="輸入紀錄名稱">
-            <button id="saveData" class="btn btn-green">💾 儲存</button>
+            <!-- 儲存按鈕現在會觸發雲端同步，或手動下載備份 -->
+            <button id="saveData" class="btn btn-green">💾 下載備份</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
-            <button id="loadData" class="btn btn-blue">📂 載入</button>
+            <button id="loadData" class="btn btn-blue">📂 載入備份</button>
             <button id="resetAllData" class="btn btn-red">🔥 全部初始化</button>
         </div>
     </header>
@@ -139,7 +147,6 @@
             <select id="sortCharacterBy" class="sort-select">
                 <option value="default">預設排序 (添加時間)</option>
                 <option value="unassigned_asc">未完成分配數量 (少到多)</option>
-                <!-- [新增] 多到少排序 -->
                 <option value="unassigned_desc">未完成分配數量 (多到少)</option>
             </select>
             
@@ -302,6 +309,34 @@
             </div>
         </div>
     </div>
+
+    <!-- 🎯 引入 Firebase SDK (與 Toolbox.html 保持一致) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+        
+        // ⚠️ 您的 Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjpfcNC4ZniqIxYzgYwp5Cs_8gbbmflVY",
+            authDomain: "ms-toolbox-web.firebaseapp.com",
+            projectId: "ms-toolbox-web",
+            storageBucket: "ms-toolbox-web.firebasestorage.app",
+            messagingSenderId: "777818785736",
+            appId: "1:777818785736:web:880b878f4a510132dfe2fd",
+            measurementId: "G-7KV0FSL1RG"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // 將 Firebase 物件掛載到 window 以便 script.js 使用
+        window.firebaseApp = app;
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.firebaseModules = { doc, getDoc, setDoc };
+    </script>
 
     <script src="script.js"></script>
 </body>

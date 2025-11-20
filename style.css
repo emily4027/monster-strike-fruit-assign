@@ -14,6 +14,28 @@ h1 { text-align: center; font-size: 28px; margin-bottom: 20px; color: #333; }
 h2 { text-align: center; font-size: 20px; margin-bottom: 20px; color: #333; font-weight: bold; }
 h3 { margin: 0; font-size: 18px; font-weight: bold; }
 
+/* [新增] 雲端狀態指示樣式 */
+.cloud-status {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 10px;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ccc;
+    display: inline-block;
+}
+.status-online { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
+.status-saving { background-color: #ffc107; box-shadow: 0 0 5px #ffc107; }
+.status-offline { background-color: #6c757d; }
+
+
 /* --- 區塊卡片 --- */
 header, .section-card {
     background: white;
@@ -126,17 +148,17 @@ input[type="text"]:focus, select:focus {
 
 .checkbox-label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; font-size: 14px; }
 
-/* [修改] 排序選單樣式 - 加寬 */
+/* 排序選單樣式 */
 .sort-select {
-    width: 260px; /* 從 160px 增加到 260px，確保文字不擁擠 */
+    width: 260px; 
     min-width: 260px;
     flex-grow: 0; 
 }
 
-/* [修改] 搜尋欄寬度調整 */
+/* 搜尋欄寬度調整 */
 .search-row input[type="text"]#searchCharacter {
-    flex-grow: 3; /* 佔據剩餘空間 */
-    min-width: 150px; /* 稍微調小最小寬度，以防在小螢幕被擠壓 */
+    flex-grow: 3; 
+    min-width: 150px; 
 }
 
 /* --- 庫存 --- */
