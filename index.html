@@ -322,7 +322,7 @@
     <!-- 🎯 引入 Firebase SDK (與 Toolbox.html 保持一致) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // ⚠️ 您的 Firebase 配置
@@ -350,17 +350,17 @@
         window.firebaseModules = { doc, getDoc, setDoc };
         window.envAppId = appId; // 暴露 App ID 給 JS
 
-        // [關鍵修正] 執行登入
+        // [關鍵修正] 僅執行帳號登入 (Custom Token)，不使用匿名備案
         const initAuth = async () => {
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             try {
               await signInWithCustomToken(auth, __initial_auth_token);
             } catch (e) {
-              console.warn("Custom token failed, falling back to anonymous");
-              await signInAnonymously(auth);
+              console.error("Custom token login failed:", e);
+              // 不再嘗試匿名登入，保持未登入狀態
             }
           } else {
-            await signInAnonymously(auth);
+             console.log("No auth token provided, remaining offline.");
           }
         };
         initAuth();

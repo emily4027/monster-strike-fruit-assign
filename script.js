@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (bankAssignments.length !== BANK_SLOTS) bankAssignments = Array(BANK_SLOTS).fill('');
 
-            console.log(`已從 LocalStorage 載入資料 (Slot: ${currentSlot})`);
+            console.log(`[DATA] LocalStorage 載入成功 (Slot: ${currentSlot})`);
         } catch (e) {
             console.error("LocalStorage 讀取失敗", e);
         }
@@ -203,15 +203,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const { doc, setDoc } = window.firebaseModules;
                     // 使用動態 Doc ID
                     const docId = getSaveDocName();
-                    // [關鍵修正] 修正路徑以符合環境規範: artifacts/{appId}/users/{userId}/data/{docId}
+                    // 路徑以符合環境規範: artifacts/{appId}/users/{userId}/fruit_data/{docId}
                     const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
                     
                     await setDoc(userDocRef, dataToSave, { merge: true });
                     
                     updateCloudStatus('online', `已同步至雲端 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
-                    console.log(`雲端儲存成功 (Doc: ${docId})`);
+                    console.log(`[CLOUD] 雲端儲存成功 (Doc: ${docId})`);
                 } catch (e) {
-                    console.error("雲端儲存失敗", e);
+                    console.error("[CLOUD] 雲端儲存失敗", e);
                     updateCloudStatus('offline', '儲存失敗');
                 }
             }, 1000); // 延遲 1 秒存檔
@@ -265,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const { doc, getDoc } = window.firebaseModules;
                 const docId = getSaveDocName();
-                // [關鍵修正] 路徑
+                // 路徑
                 const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
                 const docSnap = await getDoc(userDocRef);
                 
@@ -286,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateCloudStatus('online', `新存檔: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}`);
                 }
             } catch(e) {
-                console.error("切換讀取失敗", e);
+                console.error("[CLOUD] 切換讀取失敗", e);
                 loadFromLocalStorage(); // 降級
                 updateCloudStatus('offline', '切換讀取失敗，使用本地');
             }
@@ -328,12 +328,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (user) {
                         // === 使用者已登入 (雲端模式) ===
                         currentUser = user;
-                        isCloudMode = true;
+                        isCloudMode = true; // [關鍵] 帳號登入成功，切換為雲端模式
                         updateCloudStatus('saving', '正在從雲端載入...');
 
                         try {
                             const docId = getSaveDocName();
-                            // [關鍵修正] 路徑
+                            // 路徑
                             const userDocRef = doc(db, "artifacts", envAppId, "users", user.uid, "fruit_data", docId);
                             const docSnap = await getDoc(userDocRef);
 
@@ -349,10 +349,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 storageAssignments = data.storageAssignments || {};
                                 recordName = data.recordName || '';
                                 
-                                console.log("雲端資料載入成功");
+                                console.log("[CLOUD] 雲端資料載入成功");
                                 updateCloudStatus('online', `雲端就緒 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
                             } else {
-                                // 2. 雲端無資料 -> 檢查 LocalStorage (僅限 default Slot 才做遷移檢查，避免副存檔亂備份)
+                                // 2. 雲端無資料 -> 檢查 LocalStorage (僅限 default Slot 才做遷移檢查)
                                 if (currentSlot === 'default' && localStorage.getItem('characters')) { 
                                     loadFromLocalStorage(); // 先讀本地
                                     saveData(); // 立即觸發存檔 (上傳到雲端)
@@ -363,15 +363,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         } catch (e) {
-                            console.error("讀取雲端資料錯誤", e);
+                            console.error("[CLOUD] 讀取雲端資料錯誤", e);
                             customAlert("讀取雲端資料失敗，將暫時使用離線模式。");
                             loadFromLocalStorage();
                             isCloudMode = false;
+                            updateCloudStatus('offline', '雲端讀取錯誤'); 
                         }
                     } else {
                         // === 使用者未登入 (離線模式) ===
+                        // 因為我們移除了匿名登入，所以如果 Custom Token 失敗，就會執行這裡
                         isCloudMode = false;
-                        updateCloudStatus('offline', '未登入 (使用離線資料)');
+                        updateCloudStatus('offline', '未偵測到帳戶 (離線模式)');
                         loadFromLocalStorage();
                     }
 
@@ -381,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } else {
                 // Firebase 載入超時或失敗，降級處理
-                console.warn("Firebase SDK 未就緒");
+                console.warn("[INIT] Firebase SDK 未就緒");
             }
         }, 100);
 
@@ -1365,7 +1367,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isCloudMode && currentUser && db) {
                 const { doc, setDoc } = window.firebaseModules;
                 const docId = getSaveDocName();
-                // [關鍵修正] 路徑
+                // 路徑
                 const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
                 // 寫入空物件覆蓋
                 await setDoc(userDocRef, {
