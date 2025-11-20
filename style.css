@@ -36,6 +36,7 @@ h3 { margin: 0; font-size: 18px; font-weight: bold; }
 .status-offline { background-color: #6c757d; }
 
 /* [新增] 使用者資訊 UI 樣式 (手動實作，不依賴 Bootstrap) */
+/* 修改：使用絕對定位放在 Header 右上角 */
 #user-info {
     display: flex;
     align-items: center;
@@ -45,6 +46,12 @@ h3 { margin: 0; font-size: 18px; font-weight: bold; }
     border-radius: 25px; /* 膠囊狀圓角 */
     box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* 輕微陰影 */
     border: 1px solid #eee; /* 輕微邊框增加層次 */
+    
+    /* 定位到右上角 */
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10; /* 確保在最上層 */
 }
 
 .user-name {
@@ -89,6 +96,7 @@ header, .section-card {
     margin-bottom: 20px;
     max-width: 100%;
     box-sizing: border-box;
+    position: relative; /* [修改] 為了讓 user-info 可以絕對定位 */
 }
 
 /* --- 分頁樣式 --- */
@@ -482,5 +490,17 @@ tr.row-completed td:first-child {
     .toolbox-container {
         bottom: 15px;
         right: 15px;
+    }
+
+    /* [新增] 手機版使用者資訊改回置中 */
+    #user-info {
+        position: static; /* 回復預設流動 */
+        margin: 10px auto;
+        width: fit-content;
+    }
+    /* 確保 Header 在手機版能正確撐開高度 */
+    header {
+        display: flex;
+        flex-direction: column;
     }
 }
