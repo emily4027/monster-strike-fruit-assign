@@ -36,42 +36,39 @@ h3 { margin: 0; font-size: 18px; font-weight: bold; }
 .status-offline { background-color: #6c757d; }
 
 /* [新增] 使用者資訊 UI 樣式 (手動實作，不依賴 Bootstrap) */
-/* 修改：使用絕對定位放在 Header 右上角 */
+/* 修改：移除絕對定位，讓它回歸正常文檔流，放在 Header 內部 */
 #user-info {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: white;
-    padding: 5px 15px;
-    border-radius: 25px; /* 膠囊狀圓角 */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* 輕微陰影 */
-    border: 1px solid #eee; /* 輕微邊框增加層次 */
+    padding: 4px 12px; /* 稍微縮小 padding 以適應 header-controls */
+    border-radius: 20px; /* 膠囊狀圓角 */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* 輕微陰影 */
+    border: 1px solid #e0e0e0; /* 輕微邊框 */
     
-    /* 定位到右上角 */
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 10; /* 確保在最上層 */
+    /* 確保不被壓縮 */
+    flex-shrink: 0; 
 }
 
 .user-name {
     font-weight: 700;
     color: #333;
     font-size: 14px;
-    margin-right: 15px; /* 替代 Bootstrap me-3 */
+    margin-right: 10px;
 }
 
 .user-avatar {
-    width: 30px;
-    height: 30px;
+    width: 26px; /* 稍微縮小以適應高度 */
+    height: 26px;
     object-fit: cover;
     border-radius: 50%; /* 圓形頭像 */
     border: 1px solid #ddd;
-    margin-right: 8px; /* 替代 Bootstrap me-2 */
+    margin-right: 5px;
 }
 
 .btn-logout {
-    padding: 4px 10px;
+    padding: 2px 8px;
     font-size: 12px;
     border: 1px solid #6c757d;
     color: #6c757d;
@@ -96,7 +93,7 @@ header, .section-card {
     margin-bottom: 20px;
     max-width: 100%;
     box-sizing: border-box;
-    position: relative; /* [修改] 為了讓 user-info 可以絕對定位 */
+    /* position: relative;  <-- 不再需要 relative，因為 user-info 不再是 absolute */
 }
 
 /* --- 分頁樣式 --- */
@@ -492,11 +489,10 @@ tr.row-completed td:first-child {
         right: 15px;
     }
 
-    /* [新增] 手機版使用者資訊改回置中 */
+    /* [修改] 手機版使用者資訊樣式 */
     #user-info {
-        position: static; /* 回復預設流動 */
-        margin: 10px auto;
         width: fit-content;
+        /* 手機版也可以讓它在流動佈局中，但要確保它不會擠壞版面 */
     }
     /* 確保 Header 在手機版能正確撐開高度 */
     header {

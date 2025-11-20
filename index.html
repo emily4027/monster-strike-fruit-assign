@@ -27,17 +27,19 @@
         <!-- 錯誤訊息顯示區 -->
         <div id="authErrorMsg" style="display: none; color: #b92b27; font-size: 12px; text-align: center; margin-bottom: 10px; padding: 5px; background: #ffe6e6; border-radius: 4px;"></div>
 
-        <!-- [修改] 使用者資訊顯示區 (移除外層置中 div，改由 CSS 定位到右上角) -->
-        <div id="user-info" style="display: none;">
-            <!-- 使用者頭像 -->
-            <img id="user-avatar" src="" alt="User" class="user-avatar">
-            <!-- 使用者名稱 -->
-            <span id="user-display-name" class="user-name"></span>
-            <!-- 登出按鈕 -->
-            <button type="button" id="logout-btn" class="btn btn-logout">登出</button>
-        </div>
-
+        <!-- [修改] 將 user-info 移入 header-controls 內部，放在最前面 -->
         <div class="header-controls">
+            
+            <!-- [移動至此] 使用者資訊顯示區 -->
+            <div id="user-info" style="display: none;">
+                <!-- 使用者頭像 -->
+                <img id="user-avatar" src="" alt="User" class="user-avatar">
+                <!-- 使用者名稱 -->
+                <span id="user-display-name" class="user-name"></span>
+                <!-- 登出按鈕 -->
+                <button type="button" id="logout-btn" class="btn btn-logout">登出</button>
+            </div>
+
             <!-- 存檔切換選單 -->
             <select id="saveSlotSelect" class="save-slot-select">
                 <option value="default">📁 存檔 1 (預設)</option>
