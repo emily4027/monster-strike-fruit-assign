@@ -352,6 +352,10 @@
         window.firebaseModules = { doc, getDoc, setDoc };
         window.envAppId = appId; // 暴露 App ID 給 JS
 
+        // [關鍵修正] 掛載 onAuthStateChanged 和 signInWithCustomToken
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.signInWithCustomToken = signInWithCustomToken;
+
         // [關鍵修正] 僅執行帳號登入 (Custom Token)，不使用匿名備案
         const initAuth = async () => {
           const errorDiv = document.getElementById('authErrorMsg');
