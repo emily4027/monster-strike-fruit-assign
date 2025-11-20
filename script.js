@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = null;
     let isCloudMode = false; // 標記是否為雲端模式
     let saveTimeout = null;  // 用於 Debounce
+    let envAppId = 'default-app-id';
 
     // [新增] 存檔槽位相關變數
     let currentSlot = 'default'; // 'default', 'slot2', 'slot3'...
@@ -202,7 +203,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const { doc, setDoc } = window.firebaseModules;
                     // 使用動態 Doc ID
                     const docId = getSaveDocName();
-                    const userDocRef = doc(db, "users", currentUser.uid, "apps", docId);
+                    // [關鍵修正] 修正路徑以符合環境規範: artifacts/{appId}/users/{userId}/data/{docId}
+                    const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
+                    
                     await setDoc(userDocRef, dataToSave, { merge: true });
                     
                     updateCloudStatus('online', `已同步至雲端 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
@@ -262,7 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const { doc, getDoc } = window.firebaseModules;
                 const docId = getSaveDocName();
-                const userDocRef = doc(db, "users", currentUser.uid, "apps", docId);
+                // [關鍵修正] 路徑
+                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
                 const docSnap = await getDoc(userDocRef);
                 
                 if (docSnap.exists()) {
@@ -316,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 db = window.firebaseDb;
                 auth = window.firebaseAuth;
+                envAppId = window.envAppId || 'default-app-id';
                 const { onAuthStateChanged } = window;
                 const { doc, getDoc } = window.firebaseModules;
 
@@ -328,7 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         try {
                             const docId = getSaveDocName();
-                            const userDocRef = doc(db, "users", user.uid, "apps", docId);
+                            // [關鍵修正] 路徑
+                            const userDocRef = doc(db, "artifacts", envAppId, "users", user.uid, "fruit_data", docId);
                             const docSnap = await getDoc(userDocRef);
 
                             if (docSnap.exists()) {
@@ -350,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (currentSlot === 'default' && localStorage.getItem('characters')) { 
                                     loadFromLocalStorage(); // 先讀本地
                                     saveData(); // 立即觸發存檔 (上傳到雲端)
-                                    customAlert(`歡迎！已自動將您原本在瀏覽器的資料備份至雲端帳號 (${user.email})。`);
+                                    customAlert(`歡迎！已自動將您原本在瀏覽器的資料備份至雲端帳號 (${user.uid})。`);
                                 } else {
                                     // 雲端無資料且無需遷移
                                     updateCloudStatus('online', '雲端就緒 (新資料)');
@@ -1359,7 +1365,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isCloudMode && currentUser && db) {
                 const { doc, setDoc } = window.firebaseModules;
                 const docId = getSaveDocName();
-                const userDocRef = doc(db, "users", currentUser.uid, "apps", docId);
+                // [關鍵修正] 路徑
+                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
                 // 寫入空物件覆蓋
                 await setDoc(userDocRef, {
                     characters: [],
