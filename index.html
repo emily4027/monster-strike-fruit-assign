@@ -4,29 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>果實分配</title>
-    <!-- 載入 Noto Sans TC 字體 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <!-- 連結樣式表 -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- 標頭區 -->
     <header>
         <h1 id="mainTitle">果實分配</h1>
         
-        <!-- [新增] 雲端狀態指示器 -->
         <div id="cloudStatus" class="cloud-status" style="display: none;">
             <span class="status-dot"></span>
             <span id="cloudStatusText">連線中...</span>
         </div>
 
         <div class="header-controls">
+            <select id="saveSlotSelect" class="save-slot-select">
+                <option value="default">📁 存檔 1 (預設)</option>
+                <option value="slot2">📁 存檔 2</option>
+                <option value="slot3">📁 存檔 3</option>
+                <option value="slot4">📁 存檔 4</option>
+                <option value="slot5">📁 存檔 5</option>
+            </select>
+
             <input type="text" id="recordName" placeholder="輸入紀錄名稱">
-            <!-- 儲存按鈕現在會觸發雲端同步，或手動下載備份 -->
             <button id="saveData" class="btn btn-green">💾 下載備份</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
             <button id="loadData" class="btn btn-blue">📂 載入備份</button>
@@ -34,7 +37,6 @@
         </div>
     </header>
 
-    <!-- 角色管理 -->
     <section class="section-card">
         <h2>角色管理 (主力需求方)</h2>
         <div class="control-row">
@@ -45,28 +47,22 @@
         </div>
     </section>
 
-    <!-- 果實庫存管理 (新增分頁) -->
     <section class="section-card">
         <h2>果實庫存管理</h2>
         
-        <!-- 分頁按鈕 -->
         <div class="tabs-header">
             <button class="tab-btn active" data-tab="tab-overview">📊 總覽</button>
             <button class="tab-btn" data-tab="tab-bank">🐦 英雄 BANK (鳥籠)</button>
             <button class="tab-btn" data-tab="tab-storage">📦 角色暫存箱 (<span id="storageCharCount">0</span> 隻)</button>
         </div>
 
-        <!-- 分頁 1: 總覽 (只讀卡片顯示) -->
         <div id="tab-overview" class="tab-content active">
-             <!-- 卡片結構，只用於顯示總覽資訊 -->
-            <div class="inventory-container">
-                <!-- 左側：加擊類總覽 -->
+             <div class="inventory-container">
                 <div class="inventory-box box-green">
                     <div class="box-title title-green">⚔️ 加擊類總覽</div>
                     <div id="attackFruitsOverview" class="fruit-grid col-3"></div>
                 </div>
 
-                <!-- 右側：其他類總覽 -->
                 <div class="inventory-box box-blue">
                     <div class="box-title title-blue">🎯 其他類總覽</div>
                     <div id="otherFruitsOverview" class="fruit-grid col-2"></div>
@@ -88,21 +84,17 @@
             </div>
         </div>
 
-        <!-- 分頁 2: 英雄 BANK (下拉選單 + 轉移按鈕) -->
         <div id="tab-bank" class="tab-content">
             <h3 style="text-align: center; margin-bottom: 15px;">鳥籠數量：7 個</h3>
             <div class="bank-container">
-                <!-- BANK 果實選擇將在這裡渲染 -->
                 <div id="bankFruitSelectors" class="fruit-grid col-3">
-                    <!-- JS 會在這裡填充 7 個鳥籠的下拉選單 -->
-                </div>
+                    </div>
             </div>
             <div style="text-align: center; margin-top: 20px;">
                 <button id="resetBank" class="btn btn-red">🔄 重置所有鳥籠</button>
             </div>
         </div>
 
-        <!-- 分頁 3: 角色暫存箱 (新增轉移按鈕) -->
         <div id="tab-storage" class="tab-content">
             <div class="control-row" style="margin-bottom: 20px;">
                 <input type="text" id="newStorageChar" placeholder="輸入倉庫角色名稱 (例: 4星角)" class="input-wide">
@@ -119,8 +111,7 @@
                             <th>持有果實 2</th>
                             <th>持有果實 3</th>
                             <th>持有果實 4</th>
-                            <th style="width: 140px;">操作</th> <!-- 擴大操作欄位 -->
-                        </tr>
+                            <th style="width: 140px;">操作</th> </tr>
                     </thead>
                     <tbody id="storageTableBody"></tbody>
                 </table>
@@ -132,7 +123,6 @@
 
     </section>
 
-    <!-- 果實分配 -->
     <section class="section-card">
         <h2>果實分配 (主力區) (<span id="uncompletedCharCount">0</span> 待辦)</h2>
         <div style="text-align: center; margin-bottom: 15px;">
@@ -140,10 +130,8 @@
         </div>
 
         <div class="search-row">
-            <!-- 搜尋欄 -->
             <input type="text" id="searchCharacter" placeholder="🔍 搜尋角色名稱或果實..." class="input-wide">
             
-            <!-- 排序選單 -->
             <select id="sortCharacterBy" class="sort-select">
                 <option value="default">預設排序 (添加時間)</option>
                 <option value="unassigned_asc">未完成分配數量 (少到多)</option>
@@ -176,7 +164,6 @@
             </div>
         </div>
 
-        <!-- 滾動容器 -->
         <div class="table-scroll-container">
             <table id="fruitTable">
                 <thead>
@@ -193,7 +180,6 @@
         </div>
     </section>
 
-    <!-- 懸浮工具箱 -->
     <div class="toolbox-container">
         <div class="toolbox-header">
             🧰 工具箱
@@ -211,9 +197,6 @@
         </div>
     </div>
 
-    <!-- 彈出視窗 (Modals) -->
-    
-    <!-- 1. 角色清單 Modal -->
     <div id="characterModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -225,7 +208,6 @@
         </div>
     </div>
 
-    <!-- 2. 刪除果實 Modal -->
     <div id="deleteFruitModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -243,7 +225,6 @@
         </div>
     </div>
 
-    <!-- 3. 果實轉移 Modal (New! 支援多目的地) -->
     <div id="fruitTransferModal" class="modal">
         <div class="modal-content small-modal">
             <div class="modal-header">
@@ -252,7 +233,6 @@
             </div>
             <p id="transferSourceMessage" style="font-weight: bold;"></p>
             
-            <!-- 倉庫果實來源選擇區 -->
             <div id="storageSourceSelector" style="margin-bottom: 15px; display: none;">
                  <p style="margin-top: 15px; font-weight: bold;">選擇移出果實欄位:</p>
                  <select id="storageSourceSlotSelect" class="full-width-input"></select>
@@ -262,7 +242,6 @@
 
             <p style="margin-top: 15px; font-weight: bold;">選擇轉移目標：</p>
             
-            <!-- 新增目的地選擇 -->
             <select id="transferDestinationType" class="full-width-input" style="margin-bottom: 10px;">
                 <option value="">-- 請選擇目標類型 --</option>
                 <option value="main">主力角色 (填補空缺)</option>
@@ -270,7 +249,6 @@
                 <option value="storage">倉庫角色 (空閒果實欄位)</option>
             </select>
             
-            <!-- 目標角色/鳥籠/欄位選擇容器 -->
             <div id="transferTargetContainer">
                 <p style="margin-top: 15px;">目標容器:</p>
                 <select id="transferTargetSelect" class="full-width-input"></select>
@@ -287,7 +265,6 @@
         </div>
     </div>
 
-    <!-- 4. 警告/提示 Modal -->
     <div id="alertModal" class="modal">
         <div class="modal-content small-modal">
             <h3 id="alertTitle">提示</h3>
@@ -298,7 +275,6 @@
         </div>
     </div>
 
-    <!-- 5. 確認 Modal -->
     <div id="confirmModal" class="modal">
         <div class="modal-content small-modal">
             <h3 id="confirmTitle">請確認</h3>
@@ -310,7 +286,6 @@
         </div>
     </div>
 
-    <!-- 🎯 引入 Firebase SDK (與 Toolbox.html 保持一致) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";

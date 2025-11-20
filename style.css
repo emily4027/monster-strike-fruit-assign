@@ -140,6 +140,14 @@ input[type="text"]:focus, select:focus {
 .add-fruit-row { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
 .input-wide, .add-fruit-row input { flex-grow: 1; min-width: 200px; }
 
+/* [新增] 存檔選擇樣式 */
+.save-slot-select {
+    font-weight: bold;
+    color: #495057;
+    background-color: #fff;
+    border: 2px solid #dee2e6;
+}
+
 .checkbox-group {
     display: flex;
     gap: 15px;

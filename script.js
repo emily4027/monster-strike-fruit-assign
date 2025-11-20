@@ -51,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
         uncompletedCharCount: document.getElementById('uncompletedCharCount'),
         sortCharacterBy: document.getElementById('sortCharacterBy'),
         
+        // [新增] 存檔切換
+        saveSlotSelect: document.getElementById('saveSlotSelect'),
+
         // Modal
         characterModal: document.getElementById('characterModal'),
         characterListUl: document.getElementById('characterList'),
@@ -84,6 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let isCloudMode = false; // 標記是否為雲端模式
     let saveTimeout = null;  // 用於 Debounce
 
+    // [新增] 存檔槽位相關變數
+    let currentSlot = 'default'; // 'default', 'slot2', 'slot3'...
+
     // 資料變數 (預設為空，等待載入)
     let fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
     let characters = []; 
@@ -103,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let storageSourceSlots = {}; 
 
     // -----------------------------------------------------
-    // 🚀 雲端同步與資料載入邏輯
+    // 🚀 雲端同步與存檔管理邏輯
     // -----------------------------------------------------
 
     // 更新雲端狀態燈
@@ -121,44 +127,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 讀取 LocalStorage (舊有邏輯，作為降級備案或首次遷移來源)
+    // [新增] 取得當前存檔對應的 LocalStorage Key
+    function getLocalKey(key) {
+        if (currentSlot === 'default') return key;
+        return `${currentSlot}_${key}`;
+    }
+
+    // [新增] 取得當前存檔對應的 Firebase Doc ID
+    function getSaveDocName() {
+        if (currentSlot === 'default') return "fruit_assign";
+        return `fruit_assign_${currentSlot}`;
+    }
+
+    // 讀取 LocalStorage (支援多存檔)
     function loadFromLocalStorage() {
         try {
-            const load = (key, def) => {
+            const load = (baseKey, def) => {
+                const key = getLocalKey(baseKey);
                 const item = localStorage.getItem(key);
                 return item ? JSON.parse(item) : def;
             };
 
+            // 載入前先初始化變數
             characters = load('characters', []);
             fruitAssignments = load('fruitAssignments', {});
             fruitObtained = load('fruitObtained', {});
+            
+            // 處理 Bank
+            const bankKey = getLocalKey('bankAssignments');
             bankAssignments = load('bankAssignments', Array(BANK_SLOTS).fill(''));
-            // 兼容舊版 fruitInventory
-            const oldInventory = load('fruitInventory', null);
-            if (oldInventory && !localStorage.getItem('bankAssignments')) {
-                 bankAssignments = Array(BANK_SLOTS).fill(''); // 舊版數字無法轉為鳥籠，重置
+            
+            // 兼容舊版 (僅限 Default Slot)
+            if (currentSlot === 'default') {
+                const oldInventory = localStorage.getItem('fruitInventory');
+                if (oldInventory && !localStorage.getItem(bankKey)) {
+                    bankAssignments = Array(BANK_SLOTS).fill('');
+                }
             }
             
             fruitCategories = load('fruitCategories', JSON.parse(JSON.stringify(defaultFruits)));
             storageCharacters = load('storageCharacters', []);
             storageAssignments = load('storageAssignments', {});
-            recordName = localStorage.getItem('recordName') || '';
+            recordName = localStorage.getItem(getLocalKey('recordName')) || '';
 
             if (bankAssignments.length !== BANK_SLOTS) bankAssignments = Array(BANK_SLOTS).fill('');
 
-            console.log("已從 LocalStorage 載入資料");
+            console.log(`已從 LocalStorage 載入資料 (Slot: ${currentSlot})`);
         } catch (e) {
             console.error("LocalStorage 讀取失敗", e);
         }
     }
 
-    // 統一儲存函式 (含 Debounce)
+    // 統一儲存函式 (含 Debounce 與多存檔支援)
     function saveData() {
-        // 1. 總是更新本地變數 (UI已經更新)
-        
-        // 2. 如果是雲端模式，使用 Debounce 寫入 Firestore
+        // 如果是雲端模式，使用 Debounce 寫入 Firestore
         if (isCloudMode && currentUser && db) {
-            updateCloudStatus('saving', '儲存中...');
+            updateCloudStatus('saving', `儲存中 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})...`);
             
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
@@ -176,34 +200,115 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                     
                     const { doc, setDoc } = window.firebaseModules;
-                    const userDocRef = doc(db, "users", currentUser.uid, "apps", "fruit_assign");
+                    // 使用動態 Doc ID
+                    const docId = getSaveDocName();
+                    const userDocRef = doc(db, "users", currentUser.uid, "apps", docId);
                     await setDoc(userDocRef, dataToSave, { merge: true });
                     
-                    updateCloudStatus('online', '已同步至雲端');
-                    console.log("雲端儲存成功");
+                    updateCloudStatus('online', `已同步至雲端 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
+                    console.log(`雲端儲存成功 (Doc: ${docId})`);
                 } catch (e) {
                     console.error("雲端儲存失敗", e);
                     updateCloudStatus('offline', '儲存失敗');
                 }
             }, 1000); // 延遲 1 秒存檔
         } else {
-            // 降級模式：存入 LocalStorage
-            localStorage.setItem('characters', JSON.stringify(characters));
-            localStorage.setItem('fruitAssignments', JSON.stringify(fruitAssignments));
-            localStorage.setItem('fruitInventory', JSON.stringify({})); // 兼容舊版，設為空
-            localStorage.setItem('fruitCategories', JSON.stringify(fruitCategories));
-            localStorage.setItem('fruitObtained', JSON.stringify(fruitObtained));
-            localStorage.setItem('bankAssignments', JSON.stringify(bankAssignments));
-            localStorage.setItem('storageCharacters', JSON.stringify(storageCharacters));
-            localStorage.setItem('storageAssignments', JSON.stringify(storageAssignments));
-            localStorage.setItem('recordName', recordName);
+            // 降級模式：存入 LocalStorage (使用前綴 Key)
+            localStorage.setItem(getLocalKey('characters'), JSON.stringify(characters));
+            localStorage.setItem(getLocalKey('fruitAssignments'), JSON.stringify(fruitAssignments));
+            if (currentSlot === 'default') localStorage.setItem('fruitInventory', JSON.stringify({})); // 兼容
+            localStorage.setItem(getLocalKey('fruitCategories'), JSON.stringify(fruitCategories));
+            localStorage.setItem(getLocalKey('fruitObtained'), JSON.stringify(fruitObtained));
+            localStorage.setItem(getLocalKey('bankAssignments'), JSON.stringify(bankAssignments));
+            localStorage.setItem(getLocalKey('storageCharacters'), JSON.stringify(storageCharacters));
+            localStorage.setItem(getLocalKey('storageAssignments'), JSON.stringify(storageAssignments));
+            localStorage.setItem(getLocalKey('recordName'), recordName);
             
-            if (!isCloudMode) updateCloudStatus('offline', '離線模式 (已存本機)');
+            // 記憶上次選擇的 Slot
+            localStorage.setItem('lastSelectedSlot', currentSlot);
+            
+            if (!isCloudMode) updateCloudStatus('offline', `離線模式: ${currentSlot}`);
         }
+    }
+
+    // [新增] 清空記憶體中的資料 (切換存檔用)
+    function clearMemoryData() {
+        characters = []; 
+        fruitAssignments = {}; 
+        fruitObtained = {};
+        bankAssignments = Array(BANK_SLOTS).fill(''); 
+        storageCharacters = []; 
+        storageAssignments = {}; 
+        recordName = '';
+        fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
+    }
+
+    // [新增] 切換存檔邏輯
+    async function changeSlot(newSlot) {
+        // 1. 先儲存當前進度 (避免切換流失) - 立即執行不 Debounce
+        saveData(); 
+        
+        updateCloudStatus('saving', '切換存檔中...');
+        
+        // 2. 更新 Slot 指標
+        currentSlot = newSlot;
+        DOM.saveSlotSelect.value = newSlot;
+        
+        // 3. 清空當前變數
+        clearMemoryData();
+        
+        // 4. 重新載入資料
+        if (isCloudMode && currentUser && db) {
+            try {
+                const { doc, getDoc } = window.firebaseModules;
+                const docId = getSaveDocName();
+                const userDocRef = doc(db, "users", currentUser.uid, "apps", docId);
+                const docSnap = await getDoc(userDocRef);
+                
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    characters = data.characters || [];
+                    fruitAssignments = data.fruitAssignments || {};
+                    fruitCategories = data.fruitCategories || JSON.parse(JSON.stringify(defaultFruits));
+                    fruitObtained = data.fruitObtained || {};
+                    bankAssignments = data.bankAssignments || Array(BANK_SLOTS).fill('');
+                    storageCharacters = data.storageCharacters || [];
+                    storageAssignments = data.storageAssignments || {};
+                    recordName = data.recordName || '';
+                    updateCloudStatus('online', `已載入: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}`);
+                } else {
+                    // 該 Slot 尚無雲端資料，嘗試讀取本地 (若是第一次用這個 Slot)
+                    loadFromLocalStorage();
+                    updateCloudStatus('online', `新存檔: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}`);
+                }
+            } catch(e) {
+                console.error("切換讀取失敗", e);
+                loadFromLocalStorage(); // 降級
+                updateCloudStatus('offline', '切換讀取失敗，使用本地');
+            }
+        } else {
+            loadFromLocalStorage();
+            localStorage.setItem('lastSelectedSlot', currentSlot);
+        }
+        
+        // 5. 渲染
+        renderAll();
     }
 
     // 初始化應用程式
     async function initApp() {
+        // 恢復上次選擇的 Slot (僅限離線初始化，雲端會蓋過)
+        const lastSlot = localStorage.getItem('lastSelectedSlot');
+        if (lastSlot && ['default', 'slot2', 'slot3', 'slot4', 'slot5'].includes(lastSlot)) {
+            currentSlot = lastSlot;
+            DOM.saveSlotSelect.value = lastSlot;
+        }
+
+        // 綁定切換事件
+        DOM.saveSlotSelect.onchange = (e) => {
+            changeSlot(e.target.value);
+        };
+
         // 等待 Firebase SDK 載入
         const checkFirebase = setInterval(async () => {
             if (window.firebaseApp && window.firebaseAuth) {
@@ -212,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 db = window.firebaseDb;
                 auth = window.firebaseAuth;
                 const { onAuthStateChanged } = window;
-                const { doc, getDoc, setDoc } = window.firebaseModules;
+                const { doc, getDoc } = window.firebaseModules;
 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
@@ -222,7 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         updateCloudStatus('saving', '正在從雲端載入...');
 
                         try {
-                            const userDocRef = doc(db, "users", user.uid, "apps", "fruit_assign");
+                            const docId = getSaveDocName();
+                            const userDocRef = doc(db, "users", user.uid, "apps", docId);
                             const docSnap = await getDoc(userDocRef);
 
                             if (docSnap.exists()) {
@@ -238,17 +344,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 recordName = data.recordName || '';
                                 
                                 console.log("雲端資料載入成功");
-                                updateCloudStatus('online', '雲端連線就緒');
+                                updateCloudStatus('online', `雲端就緒 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
                             } else {
-                                // 2. 雲端無資料 -> 檢查 LocalStorage 是否有資料可遷移
-                                console.log("雲端無資料，檢查本地遷移...");
-                                if (localStorage.getItem('characters')) { // 簡單判斷本地是否有資料
+                                // 2. 雲端無資料 -> 檢查 LocalStorage (僅限 default Slot 才做遷移檢查，避免副存檔亂備份)
+                                if (currentSlot === 'default' && localStorage.getItem('characters')) { 
                                     loadFromLocalStorage(); // 先讀本地
                                     saveData(); // 立即觸發存檔 (上傳到雲端)
-                                    // 可選：清除本地資料以免混淆，但保留作備份也不錯
                                     customAlert(`歡迎！已自動將您原本在瀏覽器的資料備份至雲端帳號 (${user.email})。`);
                                 } else {
-                                    // 全新使用者，保持預設空值
+                                    // 雲端無資料且無需遷移
                                     updateCloudStatus('online', '雲端就緒 (新資料)');
                                 }
                             }
@@ -1235,22 +1339,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     document.getElementById('resetAllData').onclick = async () => {
-        if (await customConfirm('⚠️ 全部初始化？將清除所有資料(含 BANK 與倉庫)！')) {
-            // 清除本地儲存
-            localStorage.clear();
+        const slotName = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text;
+        if (await customConfirm(`⚠️ 確定要初始化【${slotName}】的所有資料嗎？此動作無法復原。`)) {
+            // 清除本地儲存 (僅清除當前 Slot)
+            localStorage.removeItem(getLocalKey('characters'));
+            localStorage.removeItem(getLocalKey('fruitAssignments'));
+            localStorage.removeItem(getLocalKey('fruitInventory'));
+            localStorage.removeItem(getLocalKey('fruitCategories'));
+            localStorage.removeItem(getLocalKey('fruitObtained'));
+            localStorage.removeItem(getLocalKey('bankAssignments'));
+            localStorage.removeItem(getLocalKey('storageCharacters'));
+            localStorage.removeItem(getLocalKey('storageAssignments'));
+            localStorage.removeItem(getLocalKey('recordName'));
+
             // 重置記憶體變數
-            characters = [];
-            fruitAssignments = {};
-            fruitObtained = {};
-            bankAssignments = Array(BANK_SLOTS).fill('');
-            storageCharacters = [];
-            storageAssignments = {};
-            recordName = '';
+            clearMemoryData();
 
             // 如果是雲端模式，也要清空雲端資料
             if (isCloudMode && currentUser && db) {
                 const { doc, setDoc } = window.firebaseModules;
-                const userDocRef = doc(db, "users", currentUser.uid, "apps", "fruit_assign");
+                const docId = getSaveDocName();
+                const userDocRef = doc(db, "users", currentUser.uid, "apps", docId);
                 // 寫入空物件覆蓋
                 await setDoc(userDocRef, {
                     characters: [],
@@ -1262,9 +1371,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     recordName: '',
                     lastUpdated: new Date()
                 });
-                updateCloudStatus('online', '雲端資料已清空');
+                updateCloudStatus('online', `雲端資料已清空 (${slotName})`);
             }
-            location.reload();
+            renderAll();
+            customAlert(`已重置【${slotName}】。`);
         }
     };
 
