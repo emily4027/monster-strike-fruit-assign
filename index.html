@@ -23,6 +23,8 @@
             <span class="status-dot"></span>
             <span id="cloudStatusText">連線中...</span>
         </div>
+        <!-- [新增] 錯誤訊息顯示區 (預設隱藏) -->
+        <div id="authErrorMsg" style="display: none; color: #b92b27; font-size: 12px; text-align: center; margin-bottom: 10px; padding: 5px; background: #ffe6e6; border-radius: 4px;"></div>
 
         <div class="header-controls">
             <!-- [新增] 存檔切換選單 -->
@@ -352,15 +354,29 @@
 
         // [關鍵修正] 僅執行帳號登入 (Custom Token)，不使用匿名備案
         const initAuth = async () => {
+          const errorDiv = document.getElementById('authErrorMsg');
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             try {
               await signInWithCustomToken(auth, __initial_auth_token);
             } catch (e) {
               console.error("Custom token login failed:", e);
-              // 不再嘗試匿名登入，保持未登入狀態
+              // [UI更新] 顯示錯誤訊息給使用者
+              if (errorDiv) {
+                  // 擷取錯誤代碼 (例如 auth/custom-token-mismatch)
+                  const errorCode = e.code || "unknown error";
+                  errorDiv.style.display = 'block';
+                  errorDiv.innerHTML = `<strong>❌ 登入失敗：</strong> 雲端連線被拒絕 (${errorCode})<br>請重新登入工具箱主站，或檢查 Firebase 專案設定。`;
+              }
             }
           } else {
              console.log("No auth token provided, remaining offline.");
+             // 沒 Token 的提示（可選）
+             // if (errorDiv) {
+             //     errorDiv.style.display = 'block';
+             //     errorDiv.style.background = '#f8f9fa';
+             //     errorDiv.style.color = '#666';
+             //     errorDiv.innerHTML = `⚠️ 未偵測到登入資訊，目前為離線模式。`;
+             // }
           }
         };
         initAuth();
