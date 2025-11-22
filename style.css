@@ -484,18 +484,18 @@ tr.row-completed td:first-child {
     #fruitTable thead { display: none; }
     #fruitTable tr { display: block; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* [修改] 減少手機版表格儲存格的高度間距 (由原本的 12px 改為 6px) */
+    /* [修改] 大幅減少手機版表格儲存格的高度間距 (由 6px 改為 3px) */
     #fruitTable td { 
         display: block; 
         text-align: right; 
         padding-left: 50%; 
         position: relative; 
         border-right: none; 
-        padding-top: 6px;
-        padding-bottom: 6px;
+        padding-top: 3px;
+        padding-bottom: 3px;
     }
     
-    /* [修改] 確保左側標籤垂直置中 */
+    /* [修改] 確保左側標籤垂直置中，並微調字體大小 */
     #fruitTable td:before { 
         content: attr(data-label); 
         position: absolute; 
@@ -503,6 +503,7 @@ tr.row-completed td:first-child {
         padding-right: 10px; 
         font-weight: bold; 
         color: #4b5563; 
+        font-size: 14px; /* 稍微縮小字體 */
         top: 50%;
         transform: translateY(-50%);
     }
@@ -513,8 +514,8 @@ tr.row-completed td:first-child {
         color: white; 
         text-align: left; 
         padding-left: 15px; 
-        padding-top: 8px;
-        padding-bottom: 8px;
+        padding-top: 6px; /* 也減少標題的上下內距 */
+        padding-bottom: 6px;
     }
     #fruitTable td:first-child:before { display: none; }
     
