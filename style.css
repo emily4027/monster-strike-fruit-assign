@@ -377,18 +377,8 @@ tr.row-completed td:first-child {
     color: #065f46;
 }
 
-.select-wrapper {
-    display: flex;
-    align-items: center;
-    /* [修改] 移除 gap，改用 padding 控制間距，並反轉排列順序 */
-    flex-direction: row-reverse;
-    justify-content: flex-end;
-}
-.select-wrapper select {
-    width: 100%;
-    /* [新增] 讓選單與左側的 checkbox 保持距離 */
-    padding-left: 8px;
-}
+.select-wrapper { display: flex; align-items: center; gap: 8px; }
+.select-wrapper select { width: 100%; }
 
 /* --- 懸浮工具箱樣式 --- */
 .toolbox-container {
@@ -494,25 +484,47 @@ tr.row-completed td:first-child {
     #fruitTable thead { display: none; }
     #fruitTable tr { display: block; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-    /* [新增] 手機版表格內的下拉選單變矮，節省空間 */
+    /* [修改] 手機版表格內的下拉選單設定 */
     #fruitTable select {
-        height: 30px; /* 高度變更矮 (原 38px) */
-        padding: 4px 8px; /* 減少內距 */
-        /* font-size 維持 14px 不變 */
+        height: 30px; /* 保持緊湊高度 */
+        padding: 4px 8px;
+        font-size: 14px; /* [修改] 恢復為易讀的 14px */
+        
+        /* [新增] 寬度設定，讓它自適應填滿 */
+        width: auto;
+        flex-grow: 1;
     }
 
-    /* [修改] 減少手機版表格儲存格的上下內距 */
+    /* [修改] 手機版表格儲存格排版 */
     #fruitTable td {
         display: block;
         text-align: right;
-        padding-left: 50%;
+        padding-left: 28%; /* [修改] 大幅減少左側空間，讓內容靠左 */
         position: relative;
         border-right: none;
-        padding-top: 5px;    /* 原本 12px -> 5px */
-        padding-bottom: 5px; /* 原本 12px -> 5px */
+        padding-top: 5px;
+        padding-bottom: 5px;
     }
 
-    /* [修改] 調整左側標籤的位置以對齊變矮的選單 */
+    /* [修改] 手機版內部選單容器 */
+    #fruitTable .select-wrapper {
+        /* [修改] 反轉順序：checkbox 在前，select 在後 */
+        flex-direction: row-reverse;
+        /* [修改] 因為反轉，start 變成右邊，end 變成左邊。align-items: center 垂直置中 */
+        /* justify-content: flex-end; 會讓內容靠左 (因為方向反了) */
+        justify-content: flex-end;
+        
+        /* 確保容器佔滿 td 剩餘寬度 */
+        width: 100%;
+    }
+    
+    /* [修改] checkbox 與 select 之間的間距 */
+    #fruitTable .select-wrapper input[type="checkbox"] {
+        margin-right: 8px; /* 在 checkbox 右邊加空隙 */
+        margin-left: 0;
+    }
+
+    /* 確保左側標籤垂直置中 */
     #fruitTable td:before {
         content: attr(data-label);
         position: absolute;
@@ -520,17 +532,20 @@ tr.row-completed td:first-child {
         padding-right: 10px;
         font-weight: bold;
         color: #4b5563;
-        top: 15px; /* 調整頂部位置以垂直置中 */
+        font-size: 14px; /* 標籤也保持 14px */
+        top: 50%;
+        transform: translateY(-50%);
     }
 
-    /* [修改] 減少角色名稱標題的內距 */
+    /* 角色名稱標題樣式 */
     #fruitTable td:first-child {
         background-color: #374151;
         color: white;
         text-align: left;
         padding-left: 15px;
-        padding-top: 8px;    /* 標題上下內距壓縮 */
+        padding-top: 8px;
         padding-bottom: 8px;
+        font-size: 14px;
     }
     #fruitTable td:first-child:before { display: none; }
 
@@ -557,10 +572,10 @@ tr.row-completed td:first-child {
         height: 24px;
     }
 
-    /* [修改] 手機版使用者資訊樣式 */
+    /* 手機版使用者資訊樣式 */
     #user-info {
         width: fit-content;
-        margin: 10px auto; /* 手機版時在控制列中置中 */
+        margin: 10px auto;
     }
     /* 確保 Header 在手機版能正確撐開高度 */
     header {
