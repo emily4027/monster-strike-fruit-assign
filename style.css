@@ -484,26 +484,33 @@ tr.row-completed td:first-child {
     #fruitTable thead { display: none; }
     #fruitTable tr { display: block; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* [修改] 大幅減少手機版表格儲存格的高度間距 (由 6px 改為 3px) */
+    /* [新增] 手機版表格內的下拉選單極限壓縮 */
+    #fruitTable select {
+        height: 26px; /* 高度變更矮 */
+        padding: 0 4px;
+        font-size: 12px;
+    }
+
+    /* [修改] 極限壓縮手機版表格儲存格的高度間距 */
     #fruitTable td { 
         display: block; 
         text-align: right; 
-        padding-left: 50%; 
+        padding-left: 40%; /* 稍微減少左邊預留空間，讓選單長度能延伸 */
         position: relative; 
         border-right: none; 
-        padding-top: 3px;
-        padding-bottom: 3px;
+        padding-top: 1px;    /* 極限壓縮：1px */
+        padding-bottom: 1px; /* 極限壓縮：1px */
     }
     
     /* [修改] 確保左側標籤垂直置中，並微調字體大小 */
     #fruitTable td:before { 
         content: attr(data-label); 
         position: absolute; 
-        left: 15px; 
-        padding-right: 10px; 
+        left: 10px; /* 靠左一點 */
+        padding-right: 5px; 
         font-weight: bold; 
         color: #4b5563; 
-        font-size: 14px; /* 稍微縮小字體 */
+        font-size: 12px; /* 字體縮小 */
         top: 50%;
         transform: translateY(-50%);
     }
@@ -513,9 +520,10 @@ tr.row-completed td:first-child {
         background-color: #374151; 
         color: white; 
         text-align: left; 
-        padding-left: 15px; 
-        padding-top: 6px; /* 也減少標題的上下內距 */
-        padding-bottom: 6px;
+        padding-left: 10px; 
+        padding-top: 4px;    
+        padding-bottom: 4px;
+        font-size: 14px;
     }
     #fruitTable td:first-child:before { display: none; }
     
