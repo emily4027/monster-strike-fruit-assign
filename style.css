@@ -475,9 +475,39 @@ tr.row-completed td:first-child {
 @media (max-width: 768px) {
     #fruitTable thead { display: none; }
     #fruitTable tr { display: block; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    #fruitTable td { display: block; text-align: right; padding-left: 50%; position: relative; border-right: none; }
-    #fruitTable td:before { content: attr(data-label); position: absolute; left: 15px; padding-right: 10px; font-weight: bold; color: #4b5563; }
-    #fruitTable td:first-child { background-color: #374151; color: white; text-align: left; padding-left: 15px; }
+    
+    /* [修改] 減少手機版表格儲存格的高度間距 (由原本的 12px 改為 6px) */
+    #fruitTable td { 
+        display: block; 
+        text-align: right; 
+        padding-left: 50%; 
+        position: relative; 
+        border-right: none; 
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+    
+    /* [修改] 確保左側標籤垂直置中 */
+    #fruitTable td:before { 
+        content: attr(data-label); 
+        position: absolute; 
+        left: 15px; 
+        padding-right: 10px; 
+        font-weight: bold; 
+        color: #4b5563; 
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    
+    /* [修改] 減少角色名稱標題的內距 */
+    #fruitTable td:first-child { 
+        background-color: #374151; 
+        color: white; 
+        text-align: left; 
+        padding-left: 15px; 
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
     #fruitTable td:first-child:before { display: none; }
     
     tr.row-completed { border: 2px solid #16a34a; }
