@@ -124,6 +124,32 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let storageSourceSlots = {}; 
 
+    // [新增] 6.2 優先讀取 SessionStorage 中的使用者資訊，避免閃爍
+    const cachedUser = sessionStorage.getItem('firebase_user_cache');
+    if (cachedUser) {
+        try {
+            const user = JSON.parse(cachedUser);
+            console.log('[CACHE] Found cached user info, updating UI immediately.');
+            updateUserUI(user);
+        } catch (e) {
+            console.error('[CACHE] Failed to parse user cache', e);
+        }
+    }
+
+    // [新增] 封裝更新使用者介面的邏輯
+    function updateUserUI(user) {
+        if (user && DOM.userInfo) {
+            DOM.userInfo.style.display = 'flex';
+            DOM.userDisplayName.textContent = user.displayName || "使用者";
+            const defaultAvatar = "https://ui-avatars.com/api/?name=" + (user.displayName || "User") + "&background=random";
+            DOM.userAvatar.src = user.photoURL || defaultAvatar;
+        } else if (DOM.userInfo) {
+            DOM.userInfo.style.display = 'none';
+            DOM.userDisplayName.textContent = '';
+            DOM.userAvatar.src = '';
+        }
+    }
+
     // -----------------------------------------------------
     // 🚀 雲端同步與存檔管理邏輯
     // -----------------------------------------------------
@@ -212,6 +238,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // [新增] 6.1 & 6.2 處理雲端資料載入 (含 SessionStorage 快取)
+    async function loadCloudData(user, docId) {
+        const cacheKey = `fruit_data_cache_${user.uid}_${docId}`;
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        // 1. 嘗試讀取快取 (避免不必要的讀取)
+        if (cachedData) {
+            try {
+                const data = JSON.parse(cachedData);
+                console.log(`[CACHE] Hit! Loading data from sessionStorage for ${docId}`);
+                applyData(data);
+                updateCloudStatus('online', `雲端就緒 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}) - 快取`);
+                return true; // 成功從快取載入
+            } catch (e) {
+                console.warn('[CACHE] Cache corrupted, fetching from server...');
+            }
+        }
+
+        // 2. 若無快取，則從 Firebase 讀取
+        console.log(`[CLOUD] Fetching data from Firestore for ${docId}`);
+        const { doc, getDoc } = window.firebaseModules;
+        const userDocRef = doc(db, "artifacts", envAppId, "users", user.uid, "fruit_data", docId);
+        const docSnap = await getDoc(userDocRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // 存入快取
+            sessionStorage.setItem(cacheKey, JSON.stringify(data));
+            applyData(data);
+            updateCloudStatus('online', `雲端就緒 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
+            return true;
+        } else {
+            return false; // 雲端無資料
+        }
+    }
+
+    // [新增] 將資料應用到全域變數並渲染
+    function applyData(data) {
+        characters = data.characters || [];
+        fruitAssignments = data.fruitAssignments || {};
+        fruitCategories = data.fruitCategories || JSON.parse(JSON.stringify(defaultFruits));
+        fruitObtained = data.fruitObtained || {};
+        bankAssignments = data.bankAssignments || Array(BANK_SLOTS).fill('');
+        storageCharacters = data.storageCharacters || [];
+        storageAssignments = data.storageAssignments || {};
+        recordName = data.recordName || '';
+        
+        updateTitle();
+        renderAll();
+    }
+
     // 統一儲存函式 (含 Debounce 與多存檔支援)
     function saveData() {
         // 如果是雲端模式，使用 Debounce 寫入 Firestore
@@ -238,6 +315,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const { doc, setDoc } = window.firebaseModules;
                     // 使用動態 Doc ID
                     const docId = getSaveDocName();
+                    
+                    // [新增] 6.2 同步更新 SessionStorage 快取，確保資料一致性
+                    const cacheKey = `fruit_data_cache_${currentUser.uid}_${docId}`;
+                    sessionStorage.setItem(cacheKey, JSON.stringify(dataToSave));
+                    console.log(`[CACHE] Updated sessionStorage for ${docId}`);
+
                     // 路徑以符合環境規範: artifacts/{appId}/users/{userId}/fruit_data/{docId}
                     const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
                     
@@ -298,29 +381,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. 重新載入資料
         if (isCloudMode && currentUser && db) {
             try {
-                const { doc, getDoc } = window.firebaseModules;
                 const docId = getSaveDocName();
-                // 路徑
-                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
-                const docSnap = await getDoc(userDocRef);
                 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    characters = data.characters || [];
-                    fruitAssignments = data.fruitAssignments || {};
-                    fruitCategories = data.fruitCategories || JSON.parse(JSON.stringify(defaultFruits));
-                    fruitObtained = data.fruitObtained || {};
-                    bankAssignments = data.bankAssignments || Array(BANK_SLOTS).fill('');
-                    storageCharacters = data.storageCharacters || [];
-                    storageAssignments = data.storageAssignments || {};
-                    recordName = data.recordName || '';
-                    
-                    // [新增] 載入資料後，立即更新該 Slot 的名稱快取
-                    // 這樣切換回來時就能看到正確的名稱
-                    updateTitle(); 
-
-                    updateCloudStatus('online', `已載入: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text}`);
-                } else {
+                // [修改] 使用封裝好的 loadCloudData (含快取檢查)
+                const loaded = await loadCloudData(currentUser, docId);
+                
+                if (!loaded) {
                     // 該 Slot 尚無雲端資料，嘗試讀取本地 (若是第一次用這個 Slot)
                     loadFromLocalStorage();
                     updateTitle(); // 更新預設或本地名稱
@@ -336,10 +402,9 @@ document.addEventListener('DOMContentLoaded', () => {
             loadFromLocalStorage();
             updateTitle(); // 更新名稱
             localStorage.setItem('lastSelectedSlot', currentSlot);
+            // 5. 渲染
+            renderAll();
         }
-        
-        // 5. 渲染
-        renderAll();
     }
 
     // 初始化應用程式
@@ -365,12 +430,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { signOut } = window.firebaseModules;
                 if (auth && signOut) {
                     signOut(auth).then(() => {
+                         // [新增] 6.2 登出時清除快取
+                         sessionStorage.removeItem('firebase_user_cache');
+                         // 也要清除資料快取嗎？如果這台是公用電腦建議清除，否則保留可加速下次登入
+                         // 這裡選擇清除 Auth 快取即可，資料快取會隨 User ID 變動
                          customAlert("已成功登出", "登出");
+                         updateUserUI(null); // 立即更新 UI
                     }).catch((error) => {
                          console.error("Sign out error", error);
                     });
                 } else {
-                    // 離線模式或未初始化時的登出處理（如果有的話）
                     location.reload();
                 }
             };
@@ -388,29 +457,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { doc, getDoc } = window.firebaseModules;
 
                 onAuthStateChanged(auth, async (user) => {
+                    // [新增] 6.2 登入狀態改變時，更新 SessionStorage
                     if (user) {
                          console.log(`[AUTH STATUS] User signed in. UID: ${user.uid}`);
-                         
-                         // [新增] 顯示使用者資訊
-                         if (DOM.userInfo) {
-                             DOM.userInfo.style.display = 'flex';
-                             // 設定顯示名稱，優先使用 displayName，若無則顯示 "使用者"
-                             DOM.userDisplayName.textContent = user.displayName || "使用者";
-                             
-                             // 設定頭像，若無 photoURL 則使用預設圖片
-                             // 這裡使用一個通用的 placeholder 圖片作為備案
-                             const defaultAvatar = "https://ui-avatars.com/api/?name=" + (user.displayName || "User") + "&background=random";
-                             DOM.userAvatar.src = user.photoURL || defaultAvatar;
-                         }
+                         const userInfo = {
+                             uid: user.uid,
+                             displayName: user.displayName,
+                             photoURL: user.photoURL
+                         };
+                         sessionStorage.setItem('firebase_user_cache', JSON.stringify(userInfo));
+                         updateUserUI(userInfo); // 更新 UI
                     } else {
                          console.log(`[AUTH STATUS] No user signed in. (UID: null)`);
-                         
-                         // [新增] 隱藏使用者資訊
-                         if (DOM.userInfo) {
-                             DOM.userInfo.style.display = 'none';
-                             DOM.userDisplayName.textContent = '';
-                             DOM.userAvatar.src = '';
-                         }
+                         sessionStorage.removeItem('firebase_user_cache');
+                         updateUserUI(null);
                     }
                     
                     if (user) {
@@ -421,26 +481,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         try {
                             const docId = getSaveDocName();
-                            // 路徑
-                            const userDocRef = doc(db, "artifacts", envAppId, "users", user.uid, "fruit_data", docId);
-                            const docSnap = await getDoc(userDocRef);
+                            
+                            // [修改] 使用封裝好的 loadCloudData (含快取檢查)
+                            const loaded = await loadCloudData(user, docId);
 
-                            if (docSnap.exists()) {
-                                // 1. 雲端有資料 -> 載入雲端資料
-                                const data = docSnap.data();
-                                characters = data.characters || [];
-                                fruitAssignments = data.fruitAssignments || {};
-                                fruitCategories = data.fruitCategories || JSON.parse(JSON.stringify(defaultFruits));
-                                fruitObtained = data.fruitObtained || {};
-                                bankAssignments = data.bankAssignments || Array(BANK_SLOTS).fill('');
-                                storageCharacters = data.storageCharacters || [];
-                                storageAssignments = data.storageAssignments || {};
-                                recordName = data.recordName || '';
-                                
-                                console.log("[CLOUD] 雲端資料載入成功");
-                                updateTitle(); // [新增] 更新標題與快取名稱
-                                updateCloudStatus('online', `雲端就緒 (${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text})`);
-                            } else {
+                            if (!loaded) {
                                 // 2. 雲端無資料 -> 檢查 LocalStorage (僅限 default Slot 才做遷移檢查)
                                 if (currentSlot === 'default' && localStorage.getItem('characters')) { 
                                     loadFromLocalStorage(); // 先讀本地
@@ -466,10 +511,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         updateCloudStatus('offline', '未偵測到帳戶 (離線模式)');
                         loadFromLocalStorage();
                         updateTitle(); // [新增]
+                        // 5. 渲染
+                        renderAll();
                     }
-
-                    // 無論哪種模式，最後都要渲染畫面
-                    renderAll();
                 });
 
             } else {
