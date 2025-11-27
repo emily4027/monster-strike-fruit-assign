@@ -9,14 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const BANK_SLOTS = 7; // 固定 7 個鳥籠
 
-    // [新增] 存檔預設名稱對照表
-    const SLOT_DEFAULTS = {
-        'default': '存檔 1 (預設)',
-        'slot2': '存檔 2',
-        'slot3': '存檔 3',
-        'slot4': '存檔 4',
-        'slot5': '存檔 5'
-    };
+    // [修改] 移除固定的 SLOT_DEFAULTS，改用動態變數
+    // 預設存檔數量改為 4，優先讀取本地紀錄
+    let totalSlots = parseInt(localStorage.getItem('total_slots') || '4');
 
     // 快取 DOM 元素
     const fruitTransferModal = document.getElementById('fruitTransferModal');
@@ -104,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let envAppId = 'default-app-id';
 
     // [新增] 存檔槽位相關變數
-    let currentSlot = 'default'; // 'default', 'slot2', 'slot3'...
+    let currentSlot = 'default'; 
 
     // 資料變數 (預設為空，等待載入)
     let fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
@@ -181,22 +176,45 @@ document.addEventListener('DOMContentLoaded', () => {
         return `fruit_assign_${currentSlot}`;
     }
 
-    // [新增] 更新下拉選單的顯示名稱 (從快取讀取)
-    function updateSlotOptions() {
+    // [修改] 動態渲染存檔下拉選單 (支援自由新增)
+    function renderSlotOptions() {
         const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
-        const options = DOM.saveSlotSelect.options;
+        const select = DOM.saveSlotSelect;
         
-        for (let i = 0; i < options.length; i++) {
-            const opt = options[i];
-            const savedName = cache[opt.value];
+        // 清空現有選項
+        select.innerHTML = '';
+
+        // 生成現有的存檔選項
+        for (let i = 1; i <= totalSlots; i++) {
+            const value = i === 1 ? 'default' : `slot${i}`;
+            const option = document.createElement('option');
+            option.value = value;
             
-            // 如果有自訂名稱則顯示，否則顯示預設名稱
+            // 決定顯示名稱
+            const savedName = cache[value];
+            let displayName = '';
+            
             if (savedName) {
-                opt.textContent = `📁 ${savedName}`;
+                displayName = `📁 ${savedName}`;
             } else {
-                opt.textContent = `📁 ${SLOT_DEFAULTS[opt.value] || opt.value}`;
+                // 預設名稱邏輯
+                displayName = `📁 存檔 ${i}` + (i === 1 ? ' (預設)' : '');
             }
+            
+            option.textContent = displayName;
+            select.appendChild(option);
         }
+
+        // [新增] 底部加入「新增存檔」選項
+        const addOption = document.createElement('option');
+        addOption.value = 'ADD_NEW';
+        addOption.textContent = '➕ 新增存檔...';
+        addOption.style.color = '#28a745'; // 讓它看起來特別一點
+        addOption.style.fontWeight = 'bold';
+        select.appendChild(addOption);
+
+        // 保持當前選中的值
+        select.value = currentSlot;
     }
 
     // 讀取 LocalStorage (支援多存檔)
@@ -366,6 +384,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // [新增] 切換存檔邏輯
     async function changeSlot(newSlot) {
+        // [新增] 處理「新增存檔」的特殊邏輯
+        if (newSlot === 'ADD_NEW') {
+            totalSlots++; // 增加存檔上限
+            localStorage.setItem('total_slots', totalSlots); // 紀錄新的上限
+            
+            // 算出新存檔的 ID (例如 slot6)
+            newSlot = `slot${totalSlots}`;
+            
+            // 重新渲染下拉選單 (這樣就會出現新的存檔和最底部的 + 新增)
+            // 同時自動選中新存檔
+            currentSlot = newSlot; 
+            renderSlotOptions(); 
+            
+            // 顯示提示
+            customAlert(`已建立新存檔：存檔 ${totalSlots}`);
+        }
+
         // 1. 先儲存當前進度 (避免切換流失) - 立即執行不 Debounce
         saveData(); 
         
@@ -411,13 +446,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initApp() {
         // 恢復上次選擇的 Slot (僅限離線初始化，雲端會蓋過)
         const lastSlot = localStorage.getItem('lastSelectedSlot');
-        if (lastSlot && ['default', 'slot2', 'slot3', 'slot4', 'slot5'].includes(lastSlot)) {
+        
+        // [修改] 檢查 lastSlot 是否在目前有效的 slot 範圍內
+        // 如果 lastSlot 是 slot6 但目前 totalSlots 只有 4，則需要動態處理 (雖然通常 totalSlots 也會被還原)
+        // 簡單起見，只要有值就嘗試恢復
+        if (lastSlot && lastSlot !== 'ADD_NEW') {
             currentSlot = lastSlot;
-            DOM.saveSlotSelect.value = lastSlot;
         }
         
-        // [新增] 程式啟動時，先更新一次選單文字 (從快取)
-        updateSlotOptions();
+        // [修改] 程式啟動時，先渲染選單 (取代原本的 updateSlotOptions)
+        renderSlotOptions();
 
         // 綁定切換事件
         DOM.saveSlotSelect.onchange = (e) => {
@@ -1008,6 +1046,88 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function getUncompletedCharacterCount() {
         return characters.filter(charName => !isCharacterCompleted(charName)).length;
+    }
+
+    function renderCharacters(searchTerm = '') {
+        DOM.characterListUl.innerHTML = '';
+        DOM.characterCount.textContent = characters.length;
+        const filtered = searchTerm ? characters.filter(n => n.toLowerCase().includes(searchTerm.toLowerCase())) : characters;
+        if (filtered.length === 0) {
+            DOM.characterListUl.innerHTML = '<li style="text-align:center; color:#999; padding:10px;">無符合角色</li>';
+            return;
+        }
+        const fragment = document.createDocumentFragment();
+        filtered.forEach(name => {
+            const li = document.createElement('li');
+            li.className = 'character-list-item';
+            
+            const span = document.createElement('span');
+            span.textContent = name;
+            
+            // Button Container
+            const btnGroup = document.createElement('div');
+            btnGroup.style.display = 'flex';
+            btnGroup.style.gap = '5px';
+
+            // Edit Button
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-blue'; // Use existing blue class
+            editBtn.style.cssText = "padding: 2px 8px; font-size: 12px;";
+            editBtn.textContent = '✏️';
+            editBtn.onclick = () => {
+                const newName = prompt('請輸入新的角色名稱:', name);
+                if (newName && newName.trim() !== '' && newName !== name) {
+                    const trimmedName = newName.trim();
+                    if (characters.includes(trimmedName)) {
+                        customAlert('該角色名稱已存在！');
+                        return;
+                    }
+                    
+                    // Update Data
+                    const idx = characters.indexOf(name);
+                    if (idx !== -1) characters[idx] = trimmedName;
+                    
+                    // Migrate Assignments
+                    if (fruitAssignments[name]) {
+                        fruitAssignments[trimmedName] = fruitAssignments[name];
+                        delete fruitAssignments[name];
+                    }
+                    // Migrate Obtained Status
+                    if (fruitObtained[name]) {
+                        fruitObtained[trimmedName] = fruitObtained[name];
+                        delete fruitObtained[name];
+                    }
+
+                    saveData();
+                    renderAll();
+                    renderCharacters(DOM.modalCharacterSearch.value); // Refresh list
+                }
+            };
+
+            // Delete Button (Existing logic)
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn btn-red';
+            delBtn.style.cssText = "padding: 2px 8px; font-size: 12px;";
+            delBtn.textContent = '🗑️';
+            delBtn.onclick = async () => {
+                if (await customConfirm(`確定刪除「${name}」？`)) {
+                    characters = characters.filter(c => c !== name);
+                    delete fruitAssignments[name];
+                    delete fruitObtained[name];
+                    saveData();
+                    renderAll();
+                    renderCharacters(DOM.modalCharacterSearch.value);
+                }
+            };
+
+            btnGroup.appendChild(editBtn);
+            btnGroup.appendChild(delBtn);
+            
+            li.appendChild(span);
+            li.appendChild(btnGroup);
+            fragment.appendChild(li);
+        });
+        DOM.characterListUl.appendChild(fragment);
     }
 
     function renderAll() {
