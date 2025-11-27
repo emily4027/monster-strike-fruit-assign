@@ -46,7 +46,7 @@
 
 1. Clone 專案：
 ````markdown  
-   git clone \[https://github.com/emily4027/monster-strike-fruit-assign.git\](https://github.com/emily4027/monster-strike-fruit-assign.git)
+   git clone [https://github.com/emily4027/monster-strike-fruit-assign.git](https://github.com/emily4027/monster-strike-fruit-assign.git)
 ````
 2. 直接使用瀏覽器開啟 ````  index.html````   即可（部分 Firebase 功能需在 HTTPS 或 localhost 環境下運作）。
 
