@@ -35,7 +35,7 @@ h3 { margin: 0; font-size: 18px; font-weight: bold; }
 .status-saving { background-color: #ffc107; box-shadow: 0 0 5px #ffc107; }
 .status-offline { background-color: #6c757d; }
 
-/* [新增] 使用者資訊 UI 樣式 (手動實作，不依賴 Bootstrap) */
+/* [新增] 使用者資訊 UI 樣式 */
 #user-info {
     display: flex;
     align-items: center;
@@ -195,6 +195,7 @@ input[type="text"]:focus, select:focus {
 .btn-indigo { background-color: #6610f2; }
 .btn-teal { background-color: #20c997; }
 .btn-gray { background-color: #6c757d; }
+.btn-warning { background-color: #ffc107; color: #212529; } /* [新增] 編輯按鈕 */
 
 /* --- 排版工具 --- */
 .header-controls, .control-row, .inventory-controls, .search-row, .add-fruit-row {
@@ -208,13 +209,49 @@ input[type="text"]:focus, select:focus {
 .add-fruit-row { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
 .input-wide, .add-fruit-row input { flex-grow: 1; min-width: 200px; }
 
-/* 存檔選擇樣式 */
-.save-slot-select {
-    font-weight: bold;
-    color: #495057;
-    background-color: #fff;
-    border: 2px solid #dee2e6;
+/* [修改] 存檔選擇區塊 - 方案 A：現代極簡風 */
+.slot-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* 增加一點間距讓圖示不擁擠 */
 }
+
+/* 簡約風格的下拉選單 */
+.select-minimal {
+    border: none;
+    border-bottom: 2px solid #ddd;
+    border-radius: 0;
+    background-color: transparent;
+    font-weight: bold;
+    font-size: 16px;
+    padding: 5px 10px;
+    color: #333;
+    min-width: 150px;
+    transition: border-color 0.2s;
+}
+.select-minimal:hover { border-bottom-color: #aaa; }
+.select-minimal:focus { border-bottom-color: #007bff; outline: none; }
+
+/* 圖示按鈕樣式 */
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999; /* 預設淡灰色 */
+    transition: all 0.2s;
+    padding: 0; /* 確保圖示置中 */
+}
+
+.btn-icon:hover { background-color: #f0f0f0; color: #333; }
+.btn-icon.delete:hover { background-color: #ffe6e6; color: #b92b27; }
+.btn-icon.add:hover { background-color: #e6fffa; color: #28a745; }
 
 .checkbox-group {
     display: flex;
@@ -474,6 +511,7 @@ tr.row-completed td:first-child {
 #characterList { list-style: none; padding: 0; margin: 0; }
 .character-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
 .character-list-item:last-child { border-bottom: none; }
+.character-actions { display: flex; gap: 5px; } /* [新增] 角色列表操作按鈕容器 */
 
 /* RWD */
 @media (max-width: 900px) {
@@ -511,7 +549,6 @@ tr.row-completed td:first-child {
         /* [修改] 反轉順序：checkbox 在前，select 在後 */
         flex-direction: row-reverse;
         /* [修改] 因為反轉，start 變成右邊，end 變成左邊。align-items: center 垂直置中 */
-        /* justify-content: flex-end; 會讓內容靠左 (因為方向反了) */
         justify-content: flex-end;
         
         /* 確保容器佔滿 td 剩餘寬度 */

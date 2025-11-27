@@ -27,10 +27,9 @@
         <!-- 錯誤訊息顯示區 -->
         <div id="authErrorMsg" style="display: none; color: #b92b27; font-size: 12px; text-align: center; margin-bottom: 10px; padding: 5px; background: #ffe6e6; border-radius: 4px;"></div>
 
-        <!-- [修改] 將 user-info 移入 header-controls 內部，放在最前面 -->
         <div class="header-controls">
             
-            <!-- [移動至此] 使用者資訊顯示區 -->
+            <!-- 使用者資訊顯示區 -->
             <div id="user-info" style="display: none;">
                 <!-- 使用者頭像 -->
                 <img id="user-avatar" src="" alt="User" class="user-avatar">
@@ -40,14 +39,14 @@
                 <button type="button" id="logout-btn" class="btn btn-logout">登出</button>
             </div>
 
-            <!-- 存檔切換選單 -->
-            <select id="saveSlotSelect" class="save-slot-select">
-                <option value="default">📁 存檔 1 (預設)</option>
-                <option value="slot2">📁 存檔 2</option>
-                <option value="slot3">📁 存檔 3</option>
-                <option value="slot4">📁 存檔 4</option>
-                <option value="slot5">📁 存檔 5</option>
-            </select>
+            <!-- 存檔切換選單 (改為方案 A：極簡風) -->
+            <div class="slot-controls">
+                <select id="saveSlotSelect" class="select-minimal" title="切換存檔">
+                    <!-- JS 動態生成 -->
+                </select>
+                <button id="addSlotBtn" class="btn-icon add" title="新增存檔">➕</button>
+                <button id="deleteSlotBtn" class="btn-icon delete" title="刪除此存檔">🗑️</button>
+            </div>
 
             <input type="text" id="recordName" placeholder="輸入紀錄名稱">
             <!-- 儲存按鈕現在會觸發雲端同步，或手動下載備份 -->
@@ -235,7 +234,7 @@
         </div>
     </div>
 
-    <!-- [新增] GitHub 專案連結按鈕 (固定在左下角) -->
+    <!-- GitHub 專案連結按鈕 -->
     <a href="https://github.com/emily4027/monster-strike-fruit-assign" target="_blank" id="github-link" title="View on GitHub">
         <svg height="32" aria-hidden="true" viewBox="0 0 16 16" version="1.1" width="32" data-view-component="true" style="fill: #fff;">
             <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
@@ -274,7 +273,7 @@
         </div>
     </div>
 
-    <!-- 3. 果實轉移 Modal (New! 支援多目的地) -->
+    <!-- 3. 果實轉移 Modal -->
     <div id="fruitTransferModal" class="modal">
         <div class="modal-content small-modal">
             <div class="modal-header">
@@ -341,13 +340,25 @@
         </div>
     </div>
 
-    <!-- 🎯 引入 Firebase SDK (與 Toolbox.html 保持一致) -->
+    <!-- [新增] 6. 輸入 Modal (用於重新命名) -->
+    <div id="inputModal" class="modal">
+        <div class="modal-content small-modal">
+            <h3 id="inputTitle">輸入</h3>
+            <p id="inputMessage"></p>
+            <input type="text" id="inputField" class="full-width-input">
+            <div class="modal-footer">
+                <button id="inputCancelBtn" class="btn btn-gray">取消</button>
+                <button id="inputOkBtn" class="btn btn-blue">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // ⚠️ 您的 Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyAjpfcNC4ZniqIxYzgYwp5Cs_8gbbmflVY",
             authDomain: "ms-toolbox-web.firebaseapp.com",
@@ -362,21 +373,17 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // 取得環境 App ID
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        // 將 Firebase 物件掛載到 window 以便 script.js 使用
         window.firebaseApp = app;
         window.firebaseAuth = auth;
         window.firebaseDb = db;
-        window.firebaseModules = { doc, getDoc, setDoc, signOut }; // [新增] signOut
-        window.envAppId = appId; // 暴露 App ID 給 JS
+        window.firebaseModules = { doc, getDoc, setDoc, signOut };
+        window.envAppId = appId;
 
-        // [關鍵修正] 掛載 onAuthStateChanged 和 signInWithCustomToken
         window.onAuthStateChanged = onAuthStateChanged;
         window.signInWithCustomToken = signInWithCustomToken;
 
-        // [關鍵修正] 僅執行帳號登入 (Custom Token)，不使用匿名備案
         const initAuth = async () => {
           const errorDiv = document.getElementById('authErrorMsg');
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -384,9 +391,7 @@
               await signInWithCustomToken(auth, __initial_auth_token);
             } catch (e) {
               console.error("Custom token login failed:", e);
-              // [UI更新] 顯示錯誤訊息給使用者
               if (errorDiv) {
-                  // 擷取錯誤代碼 (例如 auth/custom-token-mismatch)
                   const errorCode = e.code || "unknown error";
                   errorDiv.style.display = 'block';
                   errorDiv.innerHTML = `<strong>❌ 登入失敗：</strong> 雲端連線被拒絕 (${errorCode})<br>請重新登入工具箱主站，或檢查 Firebase 專案設定。`;
@@ -394,13 +399,6 @@
             }
           } else {
              console.log("No auth token provided, remaining offline.");
-             // 沒 Token 的提示（可選）
-             // if (errorDiv) {
-             //     errorDiv.style.display = 'block';
-             //     errorDiv.style.background = '#f8f9fa';
-             //     errorDiv.style.color = '#666';
-             //     errorDiv.innerHTML = `⚠️ 未偵測到登入資訊，目前為離線模式。`;
-             // }
           }
         };
         initAuth();
