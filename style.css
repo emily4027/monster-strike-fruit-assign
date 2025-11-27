@@ -228,6 +228,7 @@ input[type="text"]:focus, select:focus {
     color: #333;
     min-width: 150px;
     transition: border-color 0.2s;
+    cursor: pointer;
 }
 .select-minimal:hover { border-bottom-color: #aaa; }
 .select-minimal:focus { border-bottom-color: #007bff; outline: none; }
@@ -252,6 +253,8 @@ input[type="text"]:focus, select:focus {
 .btn-icon:hover { background-color: #f0f0f0; color: #333; }
 .btn-icon.delete:hover { background-color: #ffe6e6; color: #b92b27; }
 .btn-icon.add:hover { background-color: #e6fffa; color: #28a745; }
+/* [新增] 編輯按鈕樣式 */
+.btn-icon.edit:hover { background-color: #fff3cd; color: #856404; }
 
 .checkbox-group {
     display: flex;

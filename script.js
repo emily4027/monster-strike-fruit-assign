@@ -22,14 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const transferSlotSelect = document.getElementById('transferSlotSelect');
     const confirmTransferBtn = document.getElementById('confirmTransferBtn');
     
-    // [修改] 更新 DOM 物件，新增倉庫來源選擇 DOM 和計數器
+    // [修改] 更新 DOM 物件
     const DOM = {
         mainTitle: document.getElementById('mainTitle'),
-        recordName: document.getElementById('recordName'),
+        // [移除] recordName 輸入框
+        // recordName: document.getElementById('recordName'),
         newCharacter: document.getElementById('newCharacter'),
         characterCount: document.getElementById('characterCount'),
         
-        // [新增] 使用者資訊相關 DOM
+        // 使用者資訊相關 DOM
         userInfo: document.getElementById('user-info'),
         userAvatar: document.getElementById('user-avatar'),
         userDisplayName: document.getElementById('user-display-name'),
@@ -61,8 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
         uncompletedCharCount: document.getElementById('uncompletedCharCount'),
         sortCharacterBy: document.getElementById('sortCharacterBy'),
         
-        // [新增] 存檔切換與管理
+        // [修改] 存檔切換與管理
         saveSlotSelect: document.getElementById('saveSlotSelect'),
+        renameSlotBtn: document.getElementById('renameSlotBtn'), // [新增]
         addSlotBtn: document.getElementById('addSlotBtn'),
         deleteSlotBtn: document.getElementById('deleteSlotBtn'),
 
@@ -74,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteFruitSelect: document.getElementById('deleteFruitSelect'),
         alertModal: document.getElementById('alertModal'),
         confirmModal: document.getElementById('confirmModal'),
-        inputModal: document.getElementById('inputModal'), // [新增]
+        inputModal: document.getElementById('inputModal'),
 
         // 轉移 Modal 相關
         fruitTransferModal: fruitTransferModal,
@@ -87,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         storageSourceSelector: document.getElementById('storageSourceSelector'),
         storageSourceSlotSelect: document.getElementById('storageSourceSlotSelect'),
 
-        // [新增] 雲端狀態指示器
+        // 雲端狀態指示器
         cloudStatus: document.getElementById('cloudStatus'),
         cloudStatusText: document.getElementById('cloudStatusText'),
         statusDot: document.querySelector('.status-dot')
@@ -101,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let saveTimeout = null;  // 用於 Debounce
     let envAppId = 'default-app-id';
 
-    // [修改] 存檔槽位相關變數 (改為動態)
+    // 存檔槽位相關變數 (改為動態)
     let currentSlot = 'default'; 
     // 預設 4 個存檔
     let slotList = JSON.parse(localStorage.getItem('global_slot_list')) || ['default', 'slot2', 'slot3', 'slot4'];
@@ -458,6 +460,16 @@ document.addEventListener('DOMContentLoaded', () => {
             DOM.saveSlotSelect.onchange = (e) => changeSlot(e.target.value);
             DOM.addSlotBtn.onclick = addSlot;
             DOM.deleteSlotBtn.onclick = deleteSlot;
+            
+            // [新增] 綁定更名按鈕事件
+            DOM.renameSlotBtn.onclick = async () => {
+                const newName = await customInput('請輸入此存檔的名稱：', recordName);
+                if (newName !== null) { // 允許空字串 (清除名稱)
+                    recordName = newName;
+                    saveData();
+                    updateTitle();
+                }
+            };
             
             if (DOM.logoutBtn) {
                 DOM.logoutBtn.onclick = () => {
@@ -1035,9 +1047,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 4. 核心渲染與邏輯 ---
     function updateTitle() {
+        // [修改] 由於 recordName 輸入框已移除，這裡不再需要更新它
+        // if (DOM.recordName) DOM.recordName.value = recordName;
+        
         const name = recordName ? `${recordName}的果實分配` : '果實分配';
         if (DOM.mainTitle) DOM.mainTitle.textContent = name;
-        if (DOM.recordName) DOM.recordName.value = recordName;
         
         const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
         if (recordName && recordName.trim() !== '') {
@@ -1473,7 +1487,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (searchFiltered.length === 1) DOM.presetCharacterSelect.value = searchFiltered[0];
     }
 
-    DOM.recordName.oninput = () => { recordName = DOM.recordName.value; saveData(); updateTitle(); };
+    // [移除] 舊的 input 監聽事件
+    // DOM.recordName.oninput = () => { recordName = DOM.recordName.value; saveData(); updateTitle(); };
     
     document.getElementById('loadData').onclick = () => document.getElementById('loadFile').click();
     document.getElementById('loadFile').onchange = (e) => {

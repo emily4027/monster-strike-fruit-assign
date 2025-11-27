@@ -39,16 +39,19 @@
                 <button type="button" id="logout-btn" class="btn btn-logout">登出</button>
             </div>
 
-            <!-- 存檔切換選單 (改為方案 A：極簡風) -->
+            <!-- 存檔切換選單 (方案 A：極簡風 + 整合更名功能) -->
             <div class="slot-controls">
                 <select id="saveSlotSelect" class="select-minimal" title="切換存檔">
                     <!-- JS 動態生成 -->
                 </select>
+                <!-- [新增] 重新命名按鈕 -->
+                <button id="renameSlotBtn" class="btn-icon edit" title="重新命名此存檔">✏️</button>
                 <button id="addSlotBtn" class="btn-icon add" title="新增存檔">➕</button>
                 <button id="deleteSlotBtn" class="btn-icon delete" title="刪除此存檔">🗑️</button>
             </div>
 
-            <input type="text" id="recordName" placeholder="輸入紀錄名稱">
+            <!-- [移除] 原本的 input id="recordName" -->
+            
             <!-- 儲存按鈕現在會觸發雲端同步，或手動下載備份 -->
             <button id="saveData" class="btn btn-green">💾 下載備份</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
