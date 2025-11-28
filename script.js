@@ -1251,7 +1251,8 @@ document.addEventListener('DOMContentLoaded', () => {
             actionDiv.className = 'character-actions';
             
             const renameBtn = document.createElement('button');
-            renameBtn.className = 'btn btn-warning';
+            // [修改] 將 btn-warning 改為 btn-edit (靛青色)
+            renameBtn.className = 'btn btn-edit';
             renameBtn.style.cssText = "padding: 2px 8px; font-size: 12px;";
             renameBtn.textContent = '✏️';
             renameBtn.title = "重新命名";
@@ -1358,7 +1359,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnGroup.style.gap = '5px';
 
             const renameBtn = document.createElement('button');
-            renameBtn.className = 'btn btn-warning';
+            // [修改] 將 btn-warning 改為 btn-edit (靛青色)
+            renameBtn.className = 'btn btn-edit';
             renameBtn.textContent = '✏️';
             renameBtn.style.padding = '8px 10px';
             renameBtn.title = "重新命名";

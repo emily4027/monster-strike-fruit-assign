@@ -195,7 +195,11 @@ input[type="text"]:focus, select:focus {
 .btn-indigo { background-color: #6610f2; }
 .btn-teal { background-color: #20c997; }
 .btn-gray { background-color: #6c757d; }
-.btn-warning { background-color: #ffc107; color: #212529; } /* [新增] 編輯按鈕 */
+.btn-warning { background-color: #ffc107; color: #212529; } 
+
+/* [新增] 編輯按鈕樣式 (Indigo 靛青色) */
+.btn-edit { background-color: #6610f2; color: white; } 
+.btn-edit:hover { background-color: #520dc2; color: white; }
 
 /* --- 排版工具 --- */
 .header-controls, .control-row, .inventory-controls, .search-row, .add-fruit-row {
@@ -253,8 +257,9 @@ input[type="text"]:focus, select:focus {
 .btn-icon:hover { background-color: #f0f0f0; color: #333; }
 .btn-icon.delete:hover { background-color: #ffe6e6; color: #b92b27; }
 .btn-icon.add:hover { background-color: #e6fffa; color: #28a745; }
-/* [新增] 編輯按鈕樣式 */
-.btn-icon.edit:hover { background-color: #fff3cd; color: #856404; }
+
+/* [修改] 編輯圖示按鈕懸停樣式 (配合 Indigo 色系) */
+.btn-icon.edit:hover { background-color: #e0cffc; color: #6610f2; }
 
 .checkbox-group {
     display: flex;

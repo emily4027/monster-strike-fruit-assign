@@ -44,14 +44,12 @@
                 <select id="saveSlotSelect" class="select-minimal" title="切換存檔">
                     <!-- JS 動態生成 -->
                 </select>
-                <!-- [新增] 重新命名按鈕 -->
+                <!-- [修改] 重新命名按鈕 - 保持 btn-icon edit 結構，樣式由 CSS 控制 -->
                 <button id="renameSlotBtn" class="btn-icon edit" title="重新命名此存檔">✏️</button>
                 <button id="addSlotBtn" class="btn-icon add" title="新增存檔">➕</button>
                 <button id="deleteSlotBtn" class="btn-icon delete" title="刪除此存檔">🗑️</button>
             </div>
 
-            <!-- [移除] 原本的 input id="recordName" -->
-            
             <!-- 儲存按鈕現在會觸發雲端同步，或手動下載備份 -->
             <button id="saveData" class="btn btn-green">💾 下載備份</button>
             <input type="file" id="loadFile" style="display:none;" accept=".json">
