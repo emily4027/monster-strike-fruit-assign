@@ -318,16 +318,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 統一儲存函式 (含 Debounce 與多存檔支援)
-    function saveData() {
+    // [修正] 新增 isImmediate 參數以解決切換存檔時的非同步寫入問題
+    async function saveData(isImmediate = false) {
         // 如果是雲端模式，使用 Debounce 寫入 Firestore
         if (isCloudMode && currentUser && db) {
             // 讀取目前的選項文字作為狀態顯示
             const currentOptionText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || currentSlot;
-            updateCloudStatus('saving', `儲存中 (${currentOptionText})...`);
             
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(async () => {
+            // 定義儲存邏輯
+            const performSave = async () => {
                 try {
+                    updateCloudStatus('saving', `儲存中 (${currentOptionText})...`);
                     const dataToSave = {
                         characters,
                         fruitAssignments,
@@ -341,12 +342,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                     
                     const { doc, setDoc } = window.firebaseModules;
-                    const docId = getSaveDocName();
+                    
+                    const docId = getSaveDocName(); // 這裡使用當前的 currentSlot
                     
                     // [Optimization] 同步更新 SessionStorage 快取
-                    const cacheKey = DATA_CACHE_PREFIX + currentUser.uid; // 只快取最新的一份
-                    // 若要嚴謹可依照 docId 分開快取，但簡單優化只存當前狀態亦可
-                    // 這裡選擇只快取 "使用者最後看到的那一份" 以供下次快速載入
+                    const cacheKey = DATA_CACHE_PREFIX + currentUser.uid; 
                     sessionStorage.setItem(cacheKey, JSON.stringify(dataToSave));
 
                     const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
@@ -359,7 +359,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("[CLOUD] 雲端儲存失敗", e);
                     updateCloudStatus('offline', '儲存失敗');
                 }
-            }, 1000); // 延遲 1 秒存檔
+            };
+
+            clearTimeout(saveTimeout);
+            
+            if (isImmediate) {
+                // 強制立即執行
+                await performSave();
+            } else {
+                // 一般編輯時使用延遲存檔
+                saveTimeout = setTimeout(performSave, 1000); 
+            }
         } else {
             // 降級模式：存入 LocalStorage (使用前綴 Key)
             localStorage.setItem(getLocalKey('characters'), JSON.stringify(characters));
@@ -392,8 +402,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // [新增] 切換存檔邏輯
     async function changeSlot(newSlot) {
-        // 1. 先儲存當前進度 (避免切換流失) - 立即執行不 Debounce
-        saveData(); 
+        // 1. 先儲存當前進度 (避免切換流失) - [修正] 強制立即執行並等待完成
+        await saveData(true); 
         
         updateCloudStatus('saving', '切換存檔中...');
         
@@ -425,22 +435,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // 該 Slot 尚無雲端資料，嘗試讀取本地 (若是第一次用這個 Slot)
                     loadFromLocalStorage();
-                    updateTitle(); // 更新預設或本地名稱
                     const optText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || "";
                     updateCloudStatus('online', `新存檔: ${optText}`);
                 }
             } catch(e) {
                 console.error("[CLOUD] 切換讀取失敗", e);
                 loadFromLocalStorage(); // 降級
-                updateTitle();
                 updateCloudStatus('offline', '切換讀取失敗，使用本地');
             }
         } else {
             loadFromLocalStorage();
-            updateTitle(); // 更新名稱
             localStorage.setItem('lastSelectedSlot', currentSlot);
-            renderAll();
         }
+        
+        // [關鍵修正]：無論雲端載入成功或失敗，最後都要重新渲染畫面
+        // 之前的版本把 renderAll 放在 else 區塊裡，導致雲端載入成功後不會刷新頁面
+        renderAll();
     }
 
     // 初始化應用程式
