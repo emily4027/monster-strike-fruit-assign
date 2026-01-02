@@ -1,607 +1,243 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- 1. 資料初始化 ---
-    const defaultFruits = {
+    // ==========================================
+    // 1. 常數與狀態初始化
+    // ==========================================
+    const DEFAULT_FRUITS = {
         "同族": ["同族加擊", "同族加命擊", "同族加擊速"],
         "戰型": ["戰型加擊", "戰型加命擊", "戰型加擊速"],
         "擊種": ["擊種加擊", "擊種加命擊", "擊種加擊速"],
         "其他": ["將消", "兵消", "熱友", "速必"]
     };
-    const BANK_SLOTS = 7; // 固定 7 個鳥籠
-
-    // [新增] 快取鍵值常數 (Optimization)
+    const BANK_SLOTS = 7;
     const USER_CACHE_KEY = 'fruit_user_cache_v1';
     const DATA_CACHE_PREFIX = 'fruit_data_cache_';
 
-    // 快取 DOM 元素
-    const fruitTransferModal = document.getElementById('fruitTransferModal');
-    const transferSourceMessage = document.getElementById('transferSourceMessage');
-    const transferTargetContainer = document.getElementById('transferTargetContainer');
-    const transferDestinationType = document.getElementById('transferDestinationType');
-    const transferTargetSelect = document.getElementById('transferTargetSelect');
-    const transferSlotSelect = document.getElementById('transferSlotSelect');
-    const confirmTransferBtn = document.getElementById('confirmTransferBtn');
-    
-    // [修改] 更新 DOM 物件
-    const DOM = {
-        mainTitle: document.getElementById('mainTitle'),
-        // [移除] recordName 輸入框
-        // recordName: document.getElementById('recordName'),
-        newCharacter: document.getElementById('newCharacter'),
-        characterCount: document.getElementById('characterCount'),
-        
-        // 使用者資訊相關 DOM
-        userInfo: document.getElementById('user-info'),
-        userAvatar: document.getElementById('user-avatar'),
-        userDisplayName: document.getElementById('user-display-name'),
-        logoutBtn: document.getElementById('logout-btn'),
+    // 安全獲取 DOM 元素的輔助函數
+    const getEl = (id) => document.getElementById(id);
 
-        // Tab 相關
+    // DOM 快取 (集中管理)
+    const DOM = {
+        mainTitle: getEl('mainTitle'),
+        
+        // Character Management
+        newCharacter: getEl('newCharacter'),
+        characterCount: getEl('characterCount'),
+        addCharacter: getEl('addCharacter'),          
+        showCharacterList: getEl('showCharacterList'), 
+        resetCharacterList: getEl('resetCharacterList'), 
+        
+        // Header Controls
+        userInfo: getEl('user-info'),
+        userAvatar: getEl('user-avatar'),
+        userDisplayName: getEl('user-display-name'),
+        logoutBtn: getEl('logout-btn'),
+        saveDataBtn: getEl('saveData'),
+        loadDataBtn: getEl('loadData'),
+        resetAllData: getEl('resetAllData'), 
+        loadFile: getEl('loadFile'),
+
+        // Tabs
         tabBtns: document.querySelectorAll('.tab-btn'),
         tabContents: document.querySelectorAll('.tab-content'),
         
-        // 總覽卡片 DOM
-        attackFruitsOverview: document.getElementById('attackFruitsOverview'), 
-        otherFruitsOverview: document.getElementById('otherFruitsOverview'), 
+        // Overview
+        attackFruitsOverview: getEl('attackFruitsOverview'), 
+        otherFruitsOverview: getEl('otherFruitsOverview'), 
         
-        bankFruitSelectors: document.getElementById('bankFruitSelectors'), // BANK 選單容器
+        // Bank
+        bankFruitSelectors: getEl('bankFruitSelectors'),
+        resetBank: getEl('resetBank'), 
 
-        // 倉庫相關
-        newStorageChar: document.getElementById('newStorageChar'),
-        addStorageCharBtn: document.getElementById('addStorageChar'),
-        searchStorageChar: document.getElementById('searchStorageChar'),
-        storageTableBody: document.getElementById('storageTableBody'),
-        storageCharCount: document.getElementById('storageCharCount'), 
+        // Storage
+        newStorageChar: getEl('newStorageChar'),
+        addStorageCharBtn: getEl('addStorageChar'),
+        searchStorageChar: getEl('searchStorageChar'),
+        storageTableBody: getEl('storageTableBody'),
+        storageCharCount: getEl('storageCharCount'), 
         
-        // 分配區
-        fruitTableBody: document.getElementById('fruitTableBody'),
-        searchInput: document.getElementById('searchCharacter'),
-        filterModeCheckbox: document.getElementById('filterModeCheckbox'),
-        hideCompletedCheckbox: document.getElementById('hideCompletedCheckbox'),
-        presetCharacterSelect: document.getElementById('presetCharacter'),
-        uncompletedCharCount: document.getElementById('uncompletedCharCount'),
-        sortCharacterBy: document.getElementById('sortCharacterBy'),
+        // Allocation (Main Table)
+        fruitTableBody: getEl('fruitTableBody'),
+        searchInput: getEl('searchCharacter'),
+        filterModeCheckbox: getEl('filterModeCheckbox'),
+        hideCompletedCheckbox: getEl('hideCompletedCheckbox'),
+        resetAssignments: getEl('resetAssignments'), 
         
-        // [修改] 存檔切換與管理
-        saveSlotSelect: document.getElementById('saveSlotSelect'),
-        renameSlotBtn: document.getElementById('renameSlotBtn'), // [新增]
-        addSlotBtn: document.getElementById('addSlotBtn'),
-        deleteSlotBtn: document.getElementById('deleteSlotBtn'),
+        // Preset Controls
+        presetCharacterSelect: getEl('presetCharacter'),
+        resetPresetCharacter: getEl('resetPresetCharacter'),
+        presetBtns: [
+            getEl('presetBtn1'),
+            getEl('presetBtn2'),
+            getEl('presetBtn3'),
+            getEl('presetBtn4')
+        ],
 
-        // Modal
-        characterModal: document.getElementById('characterModal'),
-        characterListUl: document.getElementById('characterList'),
-        modalCharacterSearch: document.getElementById('modalCharacterSearch'),
-        deleteFruitModal: document.getElementById('deleteFruitModal'),
-        deleteFruitSelect: document.getElementById('deleteFruitSelect'),
-        alertModal: document.getElementById('alertModal'),
-        confirmModal: document.getElementById('confirmModal'),
-        inputModal: document.getElementById('inputModal'),
+        uncompletedCharCount: getEl('uncompletedCharCount'),
+        sortCharacterBy: getEl('sortCharacterBy'),
+        
+        // Slot Controls
+        saveSlotSelect: getEl('saveSlotSelect'),
+        renameSlotBtn: getEl('renameSlotBtn'),
+        addSlotBtn: getEl('addSlotBtn'),
+        deleteSlotBtn: getEl('deleteSlotBtn'),
 
-        // 轉移 Modal 相關
-        fruitTransferModal: fruitTransferModal,
-        transferSourceMessage: transferSourceMessage,
-        transferTargetContainer: transferTargetContainer,
-        transferDestinationType: transferDestinationType,
-        transferTargetSelect: transferTargetSelect,
-        transferSlotSelect: transferSlotSelect,
-        confirmTransferBtn: confirmTransferBtn,
-        storageSourceSelector: document.getElementById('storageSourceSelector'),
-        storageSourceSlotSelect: document.getElementById('storageSourceSlotSelect'),
+        // Fruit Management
+        newFruitName: getEl('newFruitName'),
+        newFruitCategory: getEl('newFruitCategory'),
+        addFruit: getEl('addFruit'),
+        deleteFruitBtn: getEl('deleteFruitBtn'),
+        deleteFruitSelect: getEl('deleteFruitSelect'), 
+        confirmDeleteFruit: getEl('confirmDeleteFruit'),
 
-        // 雲端狀態指示器
-        cloudStatus: document.getElementById('cloudStatus'),
-        cloudStatusText: document.getElementById('cloudStatusText'),
+        // Modals
+        characterModal: getEl('characterModal'),
+        characterListUl: getEl('characterList'),
+        modalCharacterSearch: getEl('modalCharacterSearch'),
+        deleteFruitModal: getEl('deleteFruitModal'),
+        alertModal: getEl('alertModal'),
+        confirmModal: getEl('confirmModal'),
+        inputModal: getEl('inputModal'),
+
+        // Transfer Modal
+        fruitTransferModal: getEl('fruitTransferModal'),
+        transferSourceMessage: getEl('transferSourceMessage'),
+        transferTargetContainer: getEl('transferTargetContainer'),
+        transferDestinationType: getEl('transferDestinationType'),
+        transferTargetSelect: getEl('transferTargetSelect'),
+        transferSlotSelect: getEl('transferSlotSelect'),
+        confirmTransferBtn: getEl('confirmTransferBtn'),
+        storageSourceSelector: getEl('storageSourceSelector'),
+        storageSourceSlotSelect: getEl('storageSourceSlotSelect'),
+
+        // Status
+        cloudStatus: getEl('cloudStatus'),
+        cloudStatusText: getEl('cloudStatusText'),
         statusDot: document.querySelector('.status-dot')
     };
 
-    // Firebase 相關變數
-    let db = null;
-    let auth = null;
-    let currentUser = null;
-    let isCloudMode = false; // 標記是否為雲端模式
-    let saveTimeout = null;  // 用於 Debounce
+    // Firebase 變數
+    let db = null, auth = null, currentUser = null;
+    let isCloudMode = false, saveTimeout = null;
     let envAppId = 'default-app-id';
 
-    // 存檔槽位相關變數 (改為動態)
-    let currentSlot = 'default'; 
-    // 預設 4 個存檔
+    // 應用程式狀態
+    let currentSlot = 'default';
     let slotList = JSON.parse(localStorage.getItem('global_slot_list')) || ['default', 'slot2', 'slot3', 'slot4'];
 
-    // 資料變數 (預設為空，等待載入)
-    let fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
-    let characters = []; 
-    let fruitAssignments = {}; 
+    // 資料模型 (預設值)
+    let fruitCategories = JSON.parse(JSON.stringify(DEFAULT_FRUITS));
+    let characters = [];
+    let fruitAssignments = {};
     let fruitObtained = {};
     let bankAssignments = Array(BANK_SLOTS).fill(''); 
-    let storageCharacters = []; 
+    let storageCharacters = [];
     let storageAssignments = {}; 
     let recordName = '';
 
-    // 轉移狀態追蹤
-    let currentTransfer = {
-        sourceType: '', // 'bank' 或 'storage'
-        sourceIndex: -1, // bank: 鳥籠索引, storage: [角色名稱, 果實索引]
-        fruitName: ''
+    // ==========================================
+    // 2. 核心工具函數 (Utilities)
+    // ==========================================
+
+    const debounce = (func, delay = 300) => {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => func.apply(this, args), delay);
+        };
     };
-    let storageSourceSlots = {}; 
 
-    // [新增] 渲染使用者介面 (Auth UI) - 支援從快取立即渲染
-    function renderAuthUI(userData) {
-        if (userData && DOM.userInfo) {
-            DOM.userInfo.style.display = 'flex';
-            DOM.userDisplayName.textContent = userData.displayName || "使用者";
-            const defaultAvatar = "https://ui-avatars.com/api/?name=" + (userData.displayName || "User") + "&background=random";
-            DOM.userAvatar.src = userData.photoURL || defaultAvatar;
-        } else if (DOM.userInfo) {
-            DOM.userInfo.style.display = 'none';
+    // [資料完整性修復] 這是解決 "壞掉" 問題的關鍵
+    const ensureDataIntegrity = () => {
+        // 1. 修復果實分類
+        if (!fruitCategories || typeof fruitCategories !== 'object' || Object.keys(fruitCategories).length === 0) {
+            fruitCategories = JSON.parse(JSON.stringify(DEFAULT_FRUITS));
         }
-    }
 
-    // [新增] 檢查並載入快取 (Optimization)
-    function checkAuthCache() {
-        const cachedUserStr = sessionStorage.getItem(USER_CACHE_KEY);
-        if (cachedUserStr) {
-            try {
-                const cachedUser = JSON.parse(cachedUserStr);
-                renderAuthUI(cachedUser);
-                
-                const cacheDataKey = DATA_CACHE_PREFIX + cachedUser.uid;
-                const cachedDataStr = sessionStorage.getItem(cacheDataKey);
-                
-                if (cachedDataStr) {
-                    const data = JSON.parse(cachedDataStr);
-                    // 恢復資料
-                    applyData(data);
-                    
-                    // 恢復槽位設定
-                    const lastSlot = localStorage.getItem('lastSelectedSlot');
-                    if (lastSlot && slotList.includes(lastSlot)) {
-                        currentSlot = lastSlot;
-                    }
-                    
-                    updateTitle();
-                    renderSlotOptions();
-                    renderAll();
-                    updateCloudStatus('online', '雲端就緒 (快取)');
-                    console.log('[Optimization] 已從快取恢復資料，無需等待 Firebase');
-                }
-            } catch (e) {
-                console.warn('[Cache] 快取解析失敗，清除快取', e);
-                sessionStorage.removeItem(USER_CACHE_KEY);
-            }
+        // 2. 修復 Bank
+        if (!Array.isArray(bankAssignments) || bankAssignments.length !== BANK_SLOTS) {
+            bankAssignments = Array(BANK_SLOTS).fill('');
         }
-    }
 
-    // [新增] 將資料應用到全域變數並渲染
-    function applyData(data) {
-        characters = data.characters || [];
-        fruitAssignments = data.fruitAssignments || {};
-        fruitCategories = data.fruitCategories || JSON.parse(JSON.stringify(defaultFruits));
-        fruitObtained = data.fruitObtained || {};
-        bankAssignments = data.bankAssignments || Array(BANK_SLOTS).fill('');
-        storageCharacters = data.storageCharacters || [];
-        storageAssignments = data.storageAssignments || {};
-        recordName = data.recordName || '';
-    }
-
-    // -----------------------------------------------------
-    // 🚀 雲端同步與存檔管理邏輯
-    // -----------------------------------------------------
-
-    // 更新雲端狀態燈
-    function updateCloudStatus(status, msg) {
-        DOM.cloudStatus.style.display = 'flex';
-        DOM.cloudStatusText.textContent = msg;
-        DOM.statusDot.className = 'status-dot'; // reset
+        // 3. 修復儲存庫資料 (基本結構)
+        if (!Array.isArray(storageCharacters)) storageCharacters = [];
+        if (!storageAssignments || typeof storageAssignments !== 'object') storageAssignments = {};
         
-        if (status === 'online') {
-            DOM.statusDot.classList.add('status-online');
-        } else if (status === 'saving') {
-            DOM.statusDot.classList.add('status-saving');
-        } else {
-            DOM.statusDot.classList.add('status-offline');
-        }
-    }
-
-    // [新增] 取得當前存檔對應的 LocalStorage Key
-    function getLocalKey(key) {
-        if (currentSlot === 'default') return key;
-        return `${currentSlot}_${key}`;
-    }
-
-    // [新增] 取得當前存檔對應的 Firebase Doc ID
-    function getSaveDocName() {
-        if (currentSlot === 'default') return "fruit_assign";
-        return `fruit_assign_${currentSlot}`;
-    }
-
-    // [修改] 更新下拉選單的選項 (動態生成)
-    function renderSlotOptions() {
-        const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
-        DOM.saveSlotSelect.innerHTML = '';
-        
-        slotList.forEach((slotId, index) => {
-            const option = document.createElement('option');
-            option.value = slotId;
-            const savedName = cache[slotId];
-            
-            if (slotId === 'default') {
-                option.textContent = savedName ? `📁 ${savedName}` : '📁 存檔 1 (預設)';
-            } else {
-                option.textContent = savedName ? `📁 ${savedName}` : `📁 存檔 ${index + 1}`;
+        // 4. [關鍵修復] 清理幽靈資料 (Garbage Collection)
+        // 移除「不在倉庫名單內」但在「果實分配表」中殘留的資料
+        const validStorageChars = new Set(storageCharacters);
+        Object.keys(storageAssignments).forEach(key => {
+            if (!validStorageChars.has(key)) {
+                console.warn(`[Self-Healing] Removed ghost storage data for: ${key}`);
+                delete storageAssignments[key];
             }
-            DOM.saveSlotSelect.appendChild(option);
         });
-        DOM.saveSlotSelect.value = currentSlot;
-    }
 
-    // [新增] 新增存檔
-    async function addSlot() {
-        const newSlotId = `slot_${Date.now()}`;
-        slotList.push(newSlotId);
-        localStorage.setItem('global_slot_list', JSON.stringify(slotList));
-        renderSlotOptions();
+        // 同步清理主力角色的幽靈資料 (預防萬一)
+        const validMainChars = new Set(characters);
+        Object.keys(fruitAssignments).forEach(key => {
+            if (!validMainChars.has(key)) delete fruitAssignments[key];
+        });
+        Object.keys(fruitObtained).forEach(key => {
+            if (!validMainChars.has(key)) delete fruitObtained[key];
+        });
+
+        // 5. 確保所有存在的儲存角色都有對應的 assignments 結構
+        storageCharacters.forEach(char => {
+            if (!storageAssignments[char] || !Array.isArray(storageAssignments[char])) {
+                storageAssignments[char] = ['', '', '', ''];
+            }
+        });
+    };
+
+    const getAllFruits = () => {
+        if (!fruitCategories) return [];
+        return Object.values(fruitCategories).flat();
+    };
+
+    const generateFruitOptionsHTML = () => {
+        const fruits = getAllFruits();
+        const defaultOption = '<option value="">(空)</option>';
+        return defaultOption + fruits.map(f => `<option value="${f}">${f}</option>`).join('');
+    };
+
+    const toggleModal = (modal, show) => {
+        if(modal) modal.classList.toggle('show', show);
+    };
+
+    const customAlert = (message, title = '提示') => {
+        if(!DOM.alertModal) return alert(message); 
+        document.getElementById('alertTitle').textContent = title;
+        document.getElementById('alertMessage').textContent = message;
+        toggleModal(DOM.alertModal, true);
         
-        await changeSlot(newSlotId);
-        customAlert('已新增空白存檔。');
-    }
+        const btn = document.getElementById('alertOkBtn');
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', () => toggleModal(DOM.alertModal, false), { once: true });
+    };
 
-    // [新增] 刪除存檔
-    async function deleteSlot() {
-        if (slotList.length <= 1) return customAlert('至少保留一個存檔！');
-        if (currentSlot === 'default') return customAlert('無法刪除預設存檔，請先切換到其他存檔再進行操作，或直接使用「全部初始化」功能。');
-
-        const slotName = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text;
-        if (await customConfirm(`確定要刪除「${slotName}」嗎？此操作無法復原。`)) {
-            const deletedSlot = currentSlot;
-            
-            slotList = slotList.filter(id => id !== deletedSlot);
-            localStorage.setItem('global_slot_list', JSON.stringify(slotList));
-            
-            const keysToRemove = [
-                'characters', 'fruitAssignments', 'fruitCategories', 'fruitObtained', 
-                'bankAssignments', 'storageCharacters', 'storageAssignments', 'recordName'
-            ];
-            keysToRemove.forEach(key => localStorage.removeItem(`${deletedSlot}_${key}`));
-            
-            const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
-            delete cache[deletedSlot];
-            localStorage.setItem('slot_names_cache', JSON.stringify(cache));
-
-            await changeSlot('default');
-            customAlert(`已刪除「${slotName}」。`);
-        }
-    }
-
-    function updateSlotOptions() {
-        renderSlotOptions(); // 統一呼叫
-    }
-
-    // 讀取 LocalStorage (支援多存檔)
-    function loadFromLocalStorage() {
-        try {
-            const load = (baseKey, def) => {
-                const key = getLocalKey(baseKey);
-                const item = localStorage.getItem(key);
-                return item ? JSON.parse(item) : def;
+    const customConfirm = (message, title = '請確認') => {
+        if(!DOM.confirmModal) return Promise.resolve(confirm(message)); 
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        toggleModal(DOM.confirmModal, true);
+        
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+        const okBtn = document.getElementById('confirmOkBtn');
+        
+        return new Promise((resolve) => {
+            const cleanup = () => {
+                cancelBtn.onclick = null;
+                okBtn.onclick = null;
             };
+            cancelBtn.onclick = () => { toggleModal(DOM.confirmModal, false); cleanup(); resolve(false); };
+            okBtn.onclick = () => { toggleModal(DOM.confirmModal, false); cleanup(); resolve(true); };
+        });
+    };
 
-            // 載入前先初始化變數
-            characters = load('characters', []);
-            fruitAssignments = load('fruitAssignments', {});
-            fruitObtained = load('fruitObtained', {});
-            
-            // 處理 Bank
-            const bankKey = getLocalKey('bankAssignments');
-            bankAssignments = load('bankAssignments', Array(BANK_SLOTS).fill(''));
-            
-            // 兼容舊版 (僅限 Default Slot)
-            if (currentSlot === 'default') {
-                const oldInventory = localStorage.getItem('fruitInventory');
-                if (oldInventory && !localStorage.getItem(bankKey)) {
-                    bankAssignments = Array(BANK_SLOTS).fill('');
-                }
-            }
-            
-            fruitCategories = load('fruitCategories', JSON.parse(JSON.stringify(defaultFruits)));
-            storageCharacters = load('storageCharacters', []);
-            storageAssignments = load('storageAssignments', {});
-            recordName = localStorage.getItem(getLocalKey('recordName')) || '';
-
-            if (bankAssignments.length !== BANK_SLOTS) bankAssignments = Array(BANK_SLOTS).fill('');
-
-            console.log(`[DATA] LocalStorage 載入成功 (Slot: ${currentSlot})`);
-        } catch (e) {
-            console.error("LocalStorage 讀取失敗", e);
-        }
-    }
-
-    // 統一儲存函式 (含 Debounce 與多存檔支援)
-    // [修正] 新增 isImmediate 參數以解決切換存檔時的非同步寫入問題
-    async function saveData(isImmediate = false) {
-        // 如果是雲端模式，使用 Debounce 寫入 Firestore
-        if (isCloudMode && currentUser && db) {
-            // 讀取目前的選項文字作為狀態顯示
-            const currentOptionText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || currentSlot;
-            
-            // 定義儲存邏輯
-            const performSave = async () => {
-                try {
-                    updateCloudStatus('saving', `儲存中 (${currentOptionText})...`);
-                    const dataToSave = {
-                        characters,
-                        fruitAssignments,
-                        fruitCategories,
-                        fruitObtained,
-                        bankAssignments,
-                        storageCharacters,
-                        storageAssignments,
-                        recordName,
-                        lastUpdated: new Date()
-                    };
-                    
-                    const { doc, setDoc } = window.firebaseModules;
-                    
-                    const docId = getSaveDocName(); // 這裡使用當前的 currentSlot
-                    
-                    // [Optimization] 同步更新 SessionStorage 快取
-                    const cacheKey = DATA_CACHE_PREFIX + currentUser.uid; 
-                    sessionStorage.setItem(cacheKey, JSON.stringify(dataToSave));
-
-                    const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
-                    
-                    await setDoc(userDocRef, dataToSave, { merge: true });
-                    
-                    const optText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || "";
-                    updateCloudStatus('online', `已同步至雲端 (${optText})`);
-                } catch (e) {
-                    console.error("[CLOUD] 雲端儲存失敗", e);
-                    updateCloudStatus('offline', '儲存失敗');
-                }
-            };
-
-            clearTimeout(saveTimeout);
-            
-            if (isImmediate) {
-                // 強制立即執行
-                await performSave();
-            } else {
-                // 一般編輯時使用延遲存檔
-                saveTimeout = setTimeout(performSave, 1000); 
-            }
-        } else {
-            // 降級模式：存入 LocalStorage (使用前綴 Key)
-            localStorage.setItem(getLocalKey('characters'), JSON.stringify(characters));
-            localStorage.setItem(getLocalKey('fruitAssignments'), JSON.stringify(fruitAssignments));
-            if (currentSlot === 'default') localStorage.setItem('fruitInventory', JSON.stringify({})); // 兼容
-            localStorage.setItem(getLocalKey('fruitCategories'), JSON.stringify(fruitCategories));
-            localStorage.setItem(getLocalKey('fruitObtained'), JSON.stringify(fruitObtained));
-            localStorage.setItem(getLocalKey('bankAssignments'), JSON.stringify(bankAssignments));
-            localStorage.setItem(getLocalKey('storageCharacters'), JSON.stringify(storageCharacters));
-            localStorage.setItem(getLocalKey('storageAssignments'), JSON.stringify(storageAssignments));
-            localStorage.setItem(getLocalKey('recordName'), recordName);
-            
-            localStorage.setItem('lastSelectedSlot', currentSlot);
-            
-            if (!isCloudMode) updateCloudStatus('offline', `離線模式: ${currentSlot}`);
-        }
-    }
-
-    // [新增] 清空記憶體中的資料 (切換存檔用)
-    function clearMemoryData() {
-        characters = []; 
-        fruitAssignments = {}; 
-        fruitObtained = {};
-        bankAssignments = Array(BANK_SLOTS).fill(''); 
-        storageCharacters = []; 
-        storageAssignments = {}; 
-        recordName = '';
-        fruitCategories = JSON.parse(JSON.stringify(defaultFruits));
-    }
-
-    // [新增] 切換存檔邏輯
-    async function changeSlot(newSlot) {
-        // 1. 先儲存當前進度 (避免切換流失) - [修正] 強制立即執行並等待完成
-        await saveData(true); 
-        
-        updateCloudStatus('saving', '切換存檔中...');
-        
-        // 2. 更新 Slot 指標
-        currentSlot = newSlot;
-        DOM.saveSlotSelect.value = newSlot;
-        
-        // 3. 清空當前變數
-        clearMemoryData();
-        
-        // 4. 重新載入資料
-        if (isCloudMode && currentUser && db) {
-            try {
-                const { doc, getDoc } = window.firebaseModules;
-                const docId = getSaveDocName();
-                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
-                const docSnap = await getDoc(userDocRef);
-                
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    applyData(data);
-                    
-                    // [Optimization] 更新快取
-                    const cacheKey = DATA_CACHE_PREFIX + currentUser.uid;
-                    sessionStorage.setItem(cacheKey, JSON.stringify(data));
-                    
-                    const optText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || "";
-                    updateCloudStatus('online', `已載入: ${optText}`);
-                } else {
-                    // 該 Slot 尚無雲端資料，嘗試讀取本地 (若是第一次用這個 Slot)
-                    loadFromLocalStorage();
-                    const optText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || "";
-                    updateCloudStatus('online', `新存檔: ${optText}`);
-                }
-            } catch(e) {
-                console.error("[CLOUD] 切換讀取失敗", e);
-                loadFromLocalStorage(); // 降級
-                updateCloudStatus('offline', '切換讀取失敗，使用本地');
-            }
-        } else {
-            loadFromLocalStorage();
-            localStorage.setItem('lastSelectedSlot', currentSlot);
-        }
-        
-        // [關鍵修正]：無論雲端載入成功或失敗，最後都要重新渲染畫面
-        // 之前的版本把 renderAll 放在 else 區塊裡，導致雲端載入成功後不會刷新頁面
-        renderAll();
-    }
-
-    // 初始化應用程式
-    function initApp(retries = 0) {
-        // [Optimization] 0. 立即執行快取檢查與渲染
-        if (retries === 0) {
-            checkAuthCache();
-            renderSlotOptions();
-            
-            const lastSlot = localStorage.getItem('lastSelectedSlot');
-            if (lastSlot && slotList.includes(lastSlot)) {
-                currentSlot = lastSlot;
-                DOM.saveSlotSelect.value = currentSlot;
-            }
-
-            // 綁定事件
-            DOM.saveSlotSelect.onchange = (e) => changeSlot(e.target.value);
-            DOM.addSlotBtn.onclick = addSlot;
-            DOM.deleteSlotBtn.onclick = deleteSlot;
-            
-            // [新增] 綁定更名按鈕事件
-            DOM.renameSlotBtn.onclick = async () => {
-                const newName = await customInput('請輸入此存檔的名稱：', recordName);
-                if (newName !== null) { // 允許空字串 (清除名稱)
-                    recordName = newName;
-                    saveData();
-                    updateTitle();
-                }
-            };
-            
-            if (DOM.logoutBtn) {
-                DOM.logoutBtn.onclick = () => {
-                    const { signOut } = window.firebaseModules;
-                    if (auth && signOut) {
-                        signOut(auth).then(() => {
-                             sessionStorage.removeItem(USER_CACHE_KEY);
-                             customAlert("已成功登出", "登出");
-                        }).catch((error) => {
-                             console.error("Sign out error", error);
-                        });
-                    } else {
-                        location.reload();
-                    }
-                };
-            }
-        }
-
-        // 1. 等待 Firebase (Polling)
-        if (window.firebaseApp && window.firebaseAuth) {
-            db = window.firebaseDb;
-            auth = window.firebaseAuth;
-            envAppId = window.envAppId || 'default-app-id';
-            const { onAuthStateChanged } = window;
-            const { doc, getDoc } = window.firebaseModules;
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                     const userData = {
-                        uid: user.uid,
-                        displayName: user.displayName,
-                        photoURL: user.photoURL
-                     };
-                     sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(userData));
-                     renderAuthUI(userData);
-                } else {
-                     sessionStorage.removeItem(USER_CACHE_KEY);
-                     renderAuthUI(null);
-                }
-                
-                if (user) {
-                    // === 使用者已登入 (雲端模式) ===
-                    currentUser = user;
-                    isCloudMode = true; 
-                    
-                    // 若 characters 已有資料 (來自 sessionStorage)，不顯示 Loading
-                    if (characters.length === 0) {
-                        updateCloudStatus('saving', '正在從雲端載入...');
-                    }
-
-                    try {
-                        const docId = getSaveDocName();
-                        const userDocRef = doc(db, "artifacts", envAppId, "users", user.uid, "fruit_data", docId);
-                        const docSnap = await getDoc(userDocRef);
-
-                        if (docSnap.exists()) {
-                            const data = docSnap.data();
-                            
-                            // 寫入資料快取
-                            const cacheKey = DATA_CACHE_PREFIX + user.uid;
-                            sessionStorage.setItem(cacheKey, JSON.stringify(data));
-
-                            applyData(data);
-                            
-                            const optText = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || "";
-                            updateCloudStatus('online', `雲端就緒 (${optText})`);
-                            renderAll(); 
-                        } else {
-                            // 雲端無資料
-                            if (currentSlot === 'default' && localStorage.getItem('characters')) { 
-                                loadFromLocalStorage(); 
-                                saveData(); 
-                                customAlert(`歡迎！已自動將您原本在瀏覽器的資料備份至雲端帳號 (${user.uid})。`);
-                            } else {
-                                updateTitle(); 
-                                updateCloudStatus('online', '雲端就緒 (新資料)');
-                                renderAll();
-                            }
-                        }
-                    } catch (e) {
-                        console.error("[CLOUD] 讀取雲端資料錯誤", e);
-                        if (characters.length === 0) {
-                            loadFromLocalStorage();
-                            renderAll();
-                        }
-                        isCloudMode = false;
-                        updateTitle(); 
-                        updateCloudStatus('offline', '雲端讀取錯誤'); 
-                    }
-                } else {
-                    // === 使用者未登入 (離線模式) ===
-                    isCloudMode = false;
-                    updateCloudStatus('offline', '未偵測到帳戶 (離線模式)');
-                    if (characters.length === 0) {
-                        loadFromLocalStorage();
-                        updateTitle();
-                        renderAll();
-                    }
-                }
-            });
-
-        } else if (retries < 50) { 
-            setTimeout(() => initApp(retries + 1), 100);
-        } else {
-            console.warn("[INIT] Firebase SDK 載入超時，降級為離線模式");
-            if (characters.length === 0) {
-                loadFromLocalStorage();
-                renderAll();
-                updateTitle();
-            }
-        }
-    }
-
-
-    // --- 2. Helper Functions ---
-    function toggleModal(modal, show) {
-        if (show) modal.classList.add('show');
-        else modal.classList.remove('show');
-    }
-
-    // [新增] 自訂輸入框
-    function customInput(message, defaultValue = '') {
+    const customInput = (message, defaultValue = '') => {
+        if(!DOM.inputModal) return Promise.resolve(prompt(message, defaultValue)); 
         document.getElementById('inputTitle').textContent = '輸入';
         document.getElementById('inputMessage').textContent = message;
         const inputField = document.getElementById('inputField');
@@ -617,700 +253,297 @@ document.addEventListener('DOMContentLoaded', () => {
             const cleanup = () => {
                 cancelBtn.onclick = null;
                 okBtn.onclick = null;
+                inputField.onkeyup = null;
             };
+            const close = (val) => { toggleModal(DOM.inputModal, false); cleanup(); resolve(val); };
 
-            cancelBtn.onclick = () => {
-                toggleModal(DOM.inputModal, false);
-                cleanup();
-                resolve(null);
-            };
-
-            okBtn.onclick = () => {
-                const val = inputField.value.trim();
-                toggleModal(DOM.inputModal, false);
-                cleanup();
-                resolve(val);
-            };
-            
-            inputField.onkeyup = (e) => {
-                if(e.key === 'Enter') okBtn.click();
-            }
+            cancelBtn.onclick = () => close(null);
+            okBtn.onclick = () => close(inputField.value.trim());
+            inputField.onkeyup = (e) => { if(e.key === 'Enter') okBtn.click(); };
         });
-    }
+    };
 
-    function customAlert(message, title = '提示') {
-        document.getElementById('alertTitle').textContent = title;
-        document.getElementById('alertMessage').textContent = message;
-        toggleModal(DOM.alertModal, true);
-        
-        const btn = document.getElementById('alertOkBtn');
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.onclick = () => toggleModal(DOM.alertModal, false);
-    }
+    const getUnassignedFruitCount = (charName) => {
+        const assigned = fruitAssignments[charName] || [];
+        const obtained = fruitObtained[charName] || [];
+        return assigned.reduce((acc, val, idx) => (val && !obtained[idx] ? acc + 1 : acc), 0);
+    };
 
-    function customConfirm(message, title = '請確認') {
-        document.getElementById('confirmTitle').textContent = title;
-        document.getElementById('confirmMessage').textContent = message;
-        toggleModal(DOM.confirmModal, true);
-        
-        const cancelBtn = document.getElementById('confirmCancelBtn');
-        const okBtn = document.getElementById('confirmOkBtn');
-        
-        return new Promise((resolve) => {
-            const newCancel = cancelBtn.cloneNode(true);
-            const newOk = okBtn.cloneNode(true);
-            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
-            okBtn.parentNode.replaceChild(newOk, okBtn);
-            
-            newCancel.onclick = () => { toggleModal(DOM.confirmModal, false); resolve(false); };
-            newOk.onclick = () => { toggleModal(DOM.confirmModal, false); resolve(true); };
-        });
-    }
+    const isCharacterCompleted = (charName) => {
+        const assigned = fruitAssignments[charName] || [];
+        const obtained = fruitObtained[charName] || [];
+        const hasAssignment = assigned.some(Boolean);
+        if (!hasAssignment) return false;
+        return assigned.every((val, idx) => !val || obtained[idx]);
+    };
 
-    function getAllFruits() {
-        if (!fruitCategories || typeof fruitCategories !== 'object') return [];
-        return Object.values(fruitCategories).flat();
-    }
+    // ==========================================
+    // 3. 資料存取與雲端邏輯
+    // ==========================================
 
-    function getFruitUsageData() {
-        const usageMap = {};
-        Object.keys(fruitAssignments).forEach(char => {
-            const assigned = fruitAssignments[char] || [];
-            const obtained = fruitObtained[char] || [];
-            assigned.forEach((fruitName, idx) => {
-                if (!fruitName) return;
-                if (!usageMap[fruitName]) usageMap[fruitName] = { total: 0, obtained: 0 };
-                usageMap[fruitName].total++; 
-                if (obtained[idx]) usageMap[fruitName].obtained++; 
-            });
-        });
-        return usageMap;
-    }
-    
-    function getTotalStockCounts() {
-        const stockCounts = {};
-        bankAssignments.forEach(fruitName => {
-            if (fruitName) stockCounts[fruitName] = (stockCounts[fruitName] || 0) + 1;
-        });
-        Object.keys(storageAssignments).forEach(char => {
-            const fruits = storageAssignments[char] || [];
-            fruits.forEach(f => {
-                if (f) stockCounts[f] = (stockCounts[f] || 0) + 1;
-            });
-        });
-        return stockCounts;
-    }
-    
-    function createOverviewItem(fruitName, usageData, totalStock) {
-        const item = document.createElement('div');
-        item.className = 'inventory-item';
+    const updateCloudStatus = (status, msg) => {
+        if(!DOM.cloudStatus) return;
+        DOM.cloudStatus.style.display = 'flex';
+        DOM.cloudStatusText.textContent = msg;
+        DOM.statusDot.className = 'status-dot';
+        DOM.statusDot.classList.remove('status-online', 'status-saving', 'status-offline');
         
-        const totalAssigned = usageData?.total || 0;
-        const obtainedCount = usageData?.obtained || 0; 
-        
-        const needed = totalAssigned - obtainedCount; 
-        const diff = totalStock - needed; 
-        
-        let diffText = '';
-        let diffClass = '';
+        const map = { 'online': 'status-online', 'saving': 'status-saving', 'offline': 'status-offline' };
+        if (map[status]) DOM.statusDot.classList.add(map[status]);
+    };
 
-        if (diff === 0) {
-            diffText = '剛好';
-            diffClass = 'diff-ok';
-        } else if (diff > 0) {
-            diffText = `多 ${diff}`;
-            diffClass = 'diff-more';
-        } else {
-            diffText = `缺 ${Math.abs(diff)}`;
-            diffClass = 'diff-less';
+    const getLocalKey = (key) => (currentSlot === 'default') ? key : `${currentSlot}_${key}`;
+    const getSaveDocName = () => (currentSlot === 'default') ? "fruit_assign" : `fruit_assign_${currentSlot}`;
+
+    const updateTitle = () => {
+        if(DOM.mainTitle) {
+            const name = recordName ? `${recordName}的果實分配` : '果實分配';
+            DOM.mainTitle.textContent = name;
         }
-
-        item.innerHTML = `
-            <strong style="margin-bottom: 5px; text-align: center;">${fruitName}</strong>
-            <div class="status-indicator ${diffClass}">
-                ${diffClass === 'diff-less' ? '⚠️' : diffClass === 'diff-more' ? '📦' : '✓'} ${diffText}
-            </div>
-            <div class="overview-footer">
-                <span style="font-weight: bold;">分配: ${totalAssigned}</span>
-                <span>已獲得: ${obtainedCount}</span>
-                <span style="font-weight: bold;">庫存: ${totalStock}</span>
-            </div>
-        `;
-        return item;
-    }
-
-    function getNeededCharacterSlots(fruitName) {
-        const neededSlots = [];
-        characters.forEach(charName => {
-            const assigned = fruitAssignments[charName] || [];
-            const obtained = fruitObtained[charName] || [];
-            assigned.forEach((assignedFruit, index) => {
-                if (assignedFruit === fruitName && !obtained[index]) {
-                    neededSlots.push({
-                        char: charName,
-                        slot: index + 1,
-                        slotText: `果實 ${index + 1}`
-                    });
-                }
-            });
-        });
-        return neededSlots;
-    }
-
-    function getAvailableDestinationSlots(fruitName) {
-        const slots = {
-            main: [], 
-            bank: [], 
-            storage: [] 
-        };
-        slots.main = getNeededCharacterSlots(fruitName);
-        for (let i = 0; i < BANK_SLOTS; i++) {
-            if (!bankAssignments[i]) {
-                slots.bank.push({ id: i, name: `鳥籠 ${i + 1}`, text: `鳥籠 ${i + 1} (空)`});
-            }
-        }
-        storageCharacters.forEach(charName => {
-            const assigned = storageAssignments[charName] || [];
-            for (let index = 0; index < 4; index++) {
-                if (!assigned[index]) { 
-                    slots.storage.push({
-                        id: [charName, index],
-                        name: charName,
-                        text: `${charName} / 果實 ${index + 1} (空)`
-                    });
-                }
-            }
-        });
-        return slots;
-    }
-    
-    function loadDestinationTypes(fruitName) {
-        const allDestinations = getAvailableDestinationSlots(fruitName);
-        const hasMain = allDestinations.main.length > 0;
-        const hasBank = allDestinations.bank.length > 0;
-        const hasStorage = allDestinations.storage.length > 0;
-        
-        DOM.transferDestinationType.innerHTML = '<option value="">-- 請選擇目標類型 --</option>';
-        if (hasMain) DOM.transferDestinationType.innerHTML += `<option value="main">主力角色 (填補空缺) (${allDestinations.main.length} 需)</option>`;
-        if (hasBank) DOM.transferDestinationType.innerHTML += `<option value="bank">英雄 BANK (空閒鳥籠) (${allDestinations.bank.length} 空)</option>`;
-        if (hasStorage) DOM.transferDestinationType.innerHTML += `<option value="storage">倉庫角色 (空閒果實欄位) (${allDestinations.storage.length} 空)</option>`;
-
-        DOM.transferTargetSelect.innerHTML = '';
-        DOM.transferSlotSelect.innerHTML = '';
-        DOM.transferTargetContainer.style.display = 'none';
-        
-        DOM.transferDestinationType.onchange = () => {
-            const type = DOM.transferDestinationType.value;
-            DOM.transferTargetSelect.innerHTML = '';
-            DOM.transferSlotSelect.innerHTML = '';
-            DOM.transferTargetContainer.style.display = 'none';
-
-            if (!type) return;
-            
-            const destinations = allDestinations[type];
-            DOM.transferTargetContainer.style.display = 'block';
-            
-            if (type === 'bank') {
-                document.querySelector('#transferTargetContainer p:first-child').textContent = '目標鳥籠:';
-                document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '位置: (鳥籠只有一個位置)';
-
-                DOM.transferTargetSelect.innerHTML = '<option value="">請選擇空閒鳥籠</option>';
-                destinations.forEach(slot => {
-                    const option = document.createElement('option');
-                    option.value = slot.id; 
-                    option.textContent = slot.text;
-                    DOM.transferTargetSelect.appendChild(option);
-                });
-                DOM.transferSlotSelect.innerHTML = '<option value="0">唯一位置</option>';
-                DOM.transferSlotSelect.value = '0'; 
-                if (destinations.length === 1) {
-                    DOM.transferTargetSelect.value = destinations[0].id;
-                }
-            } else if (type === 'main') {
-                document.querySelector('#transferTargetContainer p:first-child').textContent = '目標主力角色:';
-                document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '目標果實欄位:';
-
-                DOM.transferTargetSelect.innerHTML = '<option value="">請選擇角色</option>';
-                const charOptions = {}; 
-                destinations.forEach(slot => {
-                    if (!charOptions[slot.char]) charOptions[slot.char] = [];
-                    charOptions[slot.char].push(slot);
-                });
-                Object.keys(charOptions).forEach(char => {
-                    const option = document.createElement('option');
-                    option.value = char;
-                    option.textContent = `${char} (${charOptions[char].length} 需)`;
-                    DOM.transferTargetSelect.appendChild(option);
-                });
-                DOM.transferTargetSelect.onchange = () => {
-                    const selectedChar = DOM.transferTargetSelect.value;
-                    DOM.transferSlotSelect.innerHTML = '<option value="">請選擇欄位</option>';
-                    if (selectedChar) {
-                        charOptions[selectedChar].forEach(slot => {
-                            const option = document.createElement('option');
-                            option.value = slot.slot - 1; 
-                            option.textContent = `${slot.slotText} (分配: ${fruitAssignments[selectedChar][slot.slot - 1]})`;
-                            DOM.transferSlotSelect.appendChild(option);
-                        });
-                    }
-                };
-            } else if (type === 'storage') {
-                document.querySelector('#transferTargetContainer p:first-child').textContent = '目標倉庫角色:';
-                document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '目標果實欄位:';
-                
-                DOM.transferTargetSelect.innerHTML = '<option value="">請選擇倉庫角色</option>';
-                const charOptions = {};
-                destinations.forEach(slot => {
-                    if (!charOptions[slot.name]) charOptions[slot.name] = [];
-                    charOptions[slot.name].push(slot);
-                });
-                Object.keys(charOptions).forEach(char => {
-                    const option = document.createElement('option');
-                    option.value = char;
-                    option.textContent = `${char} (${charOptions[char].length} 空位)`;
-                    DOM.transferTargetSelect.appendChild(option);
-                });
-                DOM.transferTargetSelect.onchange = () => {
-                    const selectedChar = DOM.transferTargetSelect.value;
-                    DOM.transferSlotSelect.innerHTML = '<option value="">請選擇空位</option>';
-                    if (selectedChar) {
-                        charOptions[selectedChar].forEach(slot => {
-                            const option = document.createElement('option');
-                            option.value = slot.id[1]; 
-                            option.textContent = slot.text.split(' / ')[1]; 
-                            DOM.transferSlotSelect.appendChild(option);
-                        });
-                    }
-                };
-            }
-        };
-
-        if (!hasMain && !hasBank && !hasStorage) {
-            DOM.transferDestinationType.innerHTML = '<option value="">無可用目標</option>';
-            DOM.transferDestinationType.disabled = true;
-        } else {
-            DOM.transferDestinationType.disabled = false;
-        }
-    }
-
-    function initTransferModal(fruitName, sourceType, sourceIdentifier) {
-        currentTransfer.sourceType = '';
-        currentTransfer.fruitName = '';
-        currentTransfer.sourceIndex = -1;
-        
-        DOM.transferTargetContainer.style.display = 'none';
-        DOM.transferDestinationType.value = '';
-        DOM.storageSourceSelector.style.display = 'none'; 
-        DOM.transferTargetSelect.innerHTML = '';
-        DOM.transferSlotSelect.innerHTML = '';
-        
-        if (sourceType === 'storage' && fruitName === null) {
-            const charName = sourceIdentifier;
-            const assigned = storageAssignments[charName] || [];
-            
-            storageSourceSlots = {}; 
-            let slotCount = 0;
-            assigned.forEach((fruit, index) => {
-                if (fruit) {
-                    slotCount++;
-                    const slotKey = `${charName}_${index}`;
-                    storageSourceSlots[slotKey] = {
-                        fruitName: fruit,
-                        slotIndex: index,
-                        text: `果實 ${index + 1} (${fruit})`
-                    };
-                }
-            });
-            
-            if (slotCount === 0) return customAlert(`倉庫角色「${charName}」目前沒有持有任何果實。`);
-            
-            DOM.storageSourceSelector.style.display = 'block';
-            DOM.transferSourceMessage.textContent = `來源：倉庫角色「${charName}」`;
-            DOM.transferDestinationType.disabled = true; 
-            
-            DOM.storageSourceSlotSelect.innerHTML = '<option value="">-- 請選擇要移出的果實 --</option>';
-            Object.keys(storageSourceSlots).forEach(key => {
-                const slot = storageSourceSlots[key];
-                const destinations = getAvailableDestinationSlots(slot.fruitName);
-                if (destinations.main.length > 0 || destinations.bank.length > 0 || destinations.storage.length > 0) {
-                    DOM.storageSourceSlotSelect.innerHTML += `<option value="${key}">${slot.text}</option>`;
-                }
-            });
-            
-            if (DOM.storageSourceSlotSelect.options.length <= 1) {
-                 return customAlert(`倉庫角色「${charName}」上所有果實都無處可轉移 (主力已獲或庫存已滿)。`);
-            }
-
-            DOM.storageSourceSlotSelect.onchange = () => {
-                const selectedKey = DOM.storageSourceSlotSelect.value;
-                if (selectedKey) {
-                    const slot = storageSourceSlots[selectedKey];
-                    currentTransfer.sourceType = 'storage';
-                    currentTransfer.fruitName = slot.fruitName;
-                    currentTransfer.sourceIndex = [charName, slot.slotIndex];
-                    DOM.transferSourceMessage.textContent = `來源：倉庫角色「${charName}」的果實 ${slot.slotIndex + 1} (「${slot.fruitName}」)`;
-                    
-                    DOM.transferDestinationType.disabled = false; 
-                    DOM.transferDestinationType.value = ''; 
-                    DOM.transferTargetContainer.style.display = 'none';
-                    loadDestinationTypes(slot.fruitName);
-                } else {
-                    DOM.transferDestinationType.disabled = true;
-                    DOM.transferDestinationType.innerHTML = '<option value="">-- 請選擇目標類型 --</option>';
-                    DOM.transferTargetContainer.style.display = 'none';
-                }
-            };
-            
-            if (DOM.storageSourceSlotSelect.options.length === 2) { 
-                DOM.storageSourceSlotSelect.value = DOM.storageSourceSlotSelect.options[1].value;
-                DOM.storageSourceSlotSelect.onchange(); 
-            }
-
-        } else if (fruitName) {
-            currentTransfer.sourceType = sourceType;
-            currentTransfer.fruitName = fruitName;
-            currentTransfer.sourceIndex = sourceIdentifier;
-            
-            let sourceMsg = '';
-            if (sourceType === 'bank') {
-                sourceMsg = `來源：英雄 BANK (鳥籠 ${sourceIdentifier + 1}) 的「${fruitName}」`;
-            } else if (sourceType === 'storage') {
-                const [charName, slotIndex] = sourceIdentifier;
-                sourceMsg = `來源：倉庫角色「${charName}」的果實 ${slotIndex + 1} (「${fruitName}」)`;
-            }
-            DOM.transferSourceMessage.textContent = sourceMsg;
-            DOM.transferDestinationType.disabled = false; 
-            loadDestinationTypes(fruitName); 
-        } else {
-            return customAlert('無法啟動轉移介面：果實名稱缺失。');
-        }
-        
-        DOM.confirmTransferBtn.onclick = () => performTransfer();
-        toggleModal(DOM.fruitTransferModal, true);
-    }
-    
-    function performTransfer() {
-        const targetType = DOM.transferDestinationType.value;
-        const targetContainer = DOM.transferTargetSelect.value;
-        let targetSlotIndex = parseInt(DOM.transferSlotSelect.value, 10);
-
-        if (!targetType || !targetContainer) return customAlert('請完整選擇目標類型和容器！');
-        if (targetType === 'bank') targetSlotIndex = 0; 
-        else if (isNaN(targetSlotIndex)) return customAlert('請完整選擇目標欄位！');
-
-        const { sourceType, fruitName, sourceIndex } = currentTransfer;
-        let transferSuccess = false;
-        
-        if (sourceType === 'bank') {
-            if (bankAssignments[sourceIndex] === fruitName) {
-                bankAssignments[sourceIndex] = '';
-                transferSuccess = true;
-            }
-        } else if (sourceType === 'storage') {
-            const [charName, slotIndex] = sourceIndex;
-            if (storageAssignments[charName] && storageAssignments[charName][slotIndex] === fruitName) {
-                storageAssignments[charName][slotIndex] = '';
-                transferSuccess = true;
-            }
-        }
-        
-        if (!transferSuccess) return customAlert('轉移失敗：來源果實狀態不正確或已被移除。');
-
-        let destinationText = '';
-        if (targetType === 'main') {
-            fruitObtained[targetContainer][targetSlotIndex] = true;
-            destinationText = `主力角色「${targetContainer}」的果實 ${targetSlotIndex + 1}`;
-        } else if (targetType === 'bank') {
-            const bankIndex = parseInt(targetContainer, 10);
-            bankAssignments[bankIndex] = fruitName;
-            destinationText = `英雄 BANK (鳥籠 ${bankIndex + 1})`;
-        } else if (targetType === 'storage') {
-            const charName = targetContainer;
-            if (!storageAssignments[charName]) storageAssignments[charName] = [];
-            storageAssignments[charName][targetSlotIndex] = fruitName;
-            destinationText = `倉庫角色「${charName}」的果實 ${targetSlotIndex + 1}`;
-        }
-
-        toggleModal(DOM.fruitTransferModal, false);
-        saveData();
-        renderAll();
-        customAlert(`成功將「${fruitName}」轉移至 ${destinationText}！`, '轉移成功');
-    }
-    
-    document.querySelectorAll('.transfer-close').forEach(btn => {
-        btn.onclick = () => toggleModal(DOM.fruitTransferModal, false);
-    });
-
-    // --- 3. Tab 切換邏輯 ---
-    DOM.tabBtns.forEach(btn => {
-        btn.onclick = () => {
-            DOM.tabBtns.forEach(b => b.classList.remove('active'));
-            DOM.tabContents.forEach(c => c.classList.remove('active'));
-            
-            btn.classList.add('active');
-            const targetTab = document.getElementById(btn.dataset.tab);
-            targetTab.classList.add('active');
-            if (btn.dataset.tab === 'tab-overview') renderOverviewCards();
-        };
-    });
-
-    // --- 4. 核心渲染與邏輯 ---
-    function updateTitle() {
-        // [修改] 由於 recordName 輸入框已移除，這裡不再需要更新它
-        // if (DOM.recordName) DOM.recordName.value = recordName;
-        
-        const name = recordName ? `${recordName}的果實分配` : '果實分配';
-        if (DOM.mainTitle) DOM.mainTitle.textContent = name;
         
         const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
-        if (recordName && recordName.trim() !== '') {
-            cache[currentSlot] = recordName;
-        } else {
-            delete cache[currentSlot];
-        }
+        if (recordName && recordName.trim() !== '') cache[currentSlot] = recordName;
+        else delete cache[currentSlot];
+        
         localStorage.setItem('slot_names_cache', JSON.stringify(cache));
-        updateSlotOptions();
-    }
-    
-    function isCharacterCompleted(charName) {
-        const assigned = fruitAssignments[charName] || [];
-        const obtained = fruitObtained[charName] || [];
-        let hasAssignment = false;
-        let allDone = true;
-        for(let i = 0; i < 4; i++) {
-            if (assigned[i]) {
-                hasAssignment = true;
-                if (!obtained[i]) {
-                    allDone = false;
-                    break;
+        renderSlotOptions();
+    };
+
+    const renderSlotOptions = () => {
+        if(!DOM.saveSlotSelect) return;
+        const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
+        const fragment = document.createDocumentFragment();
+        
+        slotList.forEach((slotId, index) => {
+            const option = document.createElement('option');
+            option.value = slotId;
+            const savedName = cache[slotId];
+            const defaultName = (slotId === 'default') ? '存檔 1 (預設)' : `存檔 ${index + 1}`;
+            option.textContent = savedName ? `📁 ${savedName}` : `📁 ${defaultName}`;
+            fragment.appendChild(option);
+        });
+        
+        DOM.saveSlotSelect.innerHTML = '';
+        DOM.saveSlotSelect.appendChild(fragment);
+        DOM.saveSlotSelect.value = currentSlot;
+    };
+
+    const applyData = (data) => {
+        if (!data) return;
+        characters = data.characters || [];
+        fruitAssignments = data.fruitAssignments || {};
+        // 優先使用載入的設定，若為空則使用預設值
+        fruitCategories = (data.fruitCategories && Object.keys(data.fruitCategories).length > 0) 
+            ? data.fruitCategories 
+            : JSON.parse(JSON.stringify(DEFAULT_FRUITS));
+            
+        fruitObtained = data.fruitObtained || {};
+        bankAssignments = data.bankAssignments || Array(BANK_SLOTS).fill('');
+        storageCharacters = data.storageCharacters || [];
+        storageAssignments = data.storageAssignments || {};
+        recordName = data.recordName || '';
+        
+        ensureDataIntegrity(); // 再次檢查並修復
+    };
+
+    const clearMemoryData = () => {
+        characters = []; fruitAssignments = {}; fruitObtained = {};
+        bankAssignments = Array(BANK_SLOTS).fill('');
+        storageCharacters = []; storageAssignments = {}; recordName = '';
+        fruitCategories = JSON.parse(JSON.stringify(DEFAULT_FRUITS));
+    };
+
+    const saveData = async (isImmediate = false) => {
+        const currentOptionText = DOM.saveSlotSelect ? (DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || currentSlot) : currentSlot;
+        
+        const performSave = async () => {
+            try {
+                const dataToSave = {
+                    characters, fruitAssignments, fruitCategories, fruitObtained,
+                    bankAssignments, storageCharacters, storageAssignments, recordName,
+                    lastUpdated: new Date()
+                };
+
+                const keys = {
+                    'characters': characters, 'fruitAssignments': fruitAssignments,
+                    'fruitCategories': fruitCategories, 'fruitObtained': fruitObtained,
+                    'bankAssignments': bankAssignments, 'storageCharacters': storageCharacters,
+                    'storageAssignments': storageAssignments, 'recordName': recordName
+                };
+                Object.entries(keys).forEach(([k, v]) => {
+                    localStorage.setItem(getLocalKey(k), (typeof v === 'string') ? v : JSON.stringify(v));
+                });
+                if (currentSlot === 'default') localStorage.setItem('fruitInventory', JSON.stringify({})); 
+                localStorage.setItem('lastSelectedSlot', currentSlot);
+
+                if (isCloudMode && currentUser && db) {
+                    updateCloudStatus('saving', `儲存中 (${currentOptionText})...`);
+                    const { doc, setDoc } = window.firebaseModules;
+                    sessionStorage.setItem(DATA_CACHE_PREFIX + currentUser.uid, JSON.stringify(dataToSave));
+                    const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", getSaveDocName());
+                    await setDoc(userDocRef, dataToSave, { merge: true });
+                    updateCloudStatus('online', `已同步至雲端 (${currentOptionText})`);
+                } else {
+                    updateCloudStatus('offline', `離線模式: ${currentOptionText}`);
                 }
+            } catch (e) {
+                console.error("Save Error", e);
+                updateCloudStatus('offline', '儲存失敗');
             }
-        }
-        return hasAssignment && allDone; 
-    }
-    
-    function getUnassignedFruitCount(charName) {
-        const assigned = fruitAssignments[charName] || [];
-        const obtained = fruitObtained[charName] || [];
-        let count = 0;
-        for (let i = 0; i < 4; i++) {
-            if (assigned[i] && !obtained[i]) count++;
-        }
-        return count;
-    }
-    
-    function getFilteredCharacters() {
-        const shouldHideCompleted = DOM.hideCompletedCheckbox.checked;
-        if (!shouldHideCompleted) return characters;
-        return characters.filter(charName => !isCharacterCompleted(charName));
-    }
-    
-    function getUncompletedCharacterCount() {
-        return characters.filter(charName => !isCharacterCompleted(charName)).length;
-    }
+        };
 
-    async function renameCharacter(oldName, type) {
-        const newName = await customInput(`請輸入「${oldName}」的新名稱：`, oldName);
-        if (!newName || newName === oldName) return;
-        
-        if (type === 'main') {
-            if (characters.includes(newName)) return customAlert('此角色名稱已存在！');
-            
-            const idx = characters.indexOf(oldName);
-            if (idx !== -1) characters[idx] = newName;
-            
-            if (fruitAssignments[oldName]) {
-                fruitAssignments[newName] = fruitAssignments[oldName];
-                delete fruitAssignments[oldName];
-            }
-            
-            if (fruitObtained[oldName]) {
-                fruitObtained[newName] = fruitObtained[oldName];
-                delete fruitObtained[oldName];
-            }
+        clearTimeout(saveTimeout);
+        if (isImmediate) await performSave();
+        else saveTimeout = setTimeout(performSave, 1000);
+    };
 
-        } else if (type === 'storage') {
-            if (storageCharacters.includes(newName)) return customAlert('此倉庫角色名稱已存在！');
+    const loadFromLocalStorage = () => {
+        try {
+            const load = (k, def) => {
+                const v = localStorage.getItem(getLocalKey(k));
+                return v ? JSON.parse(v) : def;
+            };
+            characters = load('characters', []);
+            fruitAssignments = load('fruitAssignments', {});
+            fruitObtained = load('fruitObtained', {});
+            bankAssignments = load('bankAssignments', Array(BANK_SLOTS).fill(''));
             
-            const idx = storageCharacters.indexOf(oldName);
-            if (idx !== -1) storageCharacters[idx] = newName;
-            
-            if (storageAssignments[oldName]) {
-                storageAssignments[newName] = storageAssignments[oldName];
-                delete storageAssignments[oldName];
+            if (currentSlot === 'default' && localStorage.getItem('fruitInventory') && !localStorage.getItem('bankAssignments')) {
+                bankAssignments = Array(BANK_SLOTS).fill('');
             }
-        }
-        
-        saveData();
-        renderAll();
-        customAlert(`已將「${oldName}」更名為「${newName}」。`);
-        
-        if (type === 'main') {
-            renderCharacters(DOM.modalCharacterSearch.value); 
-        }
-    }
+            if (bankAssignments.length !== BANK_SLOTS) bankAssignments = Array(BANK_SLOTS).fill('');
 
-    function renderAll() {
+            fruitCategories = load('fruitCategories', JSON.parse(JSON.stringify(DEFAULT_FRUITS)));
+            storageCharacters = load('storageCharacters', []);
+            storageAssignments = load('storageAssignments', {});
+            recordName = localStorage.getItem(getLocalKey('recordName')) || '';
+            
+            ensureDataIntegrity(); // 確保資料可用
+        } catch (e) {
+            console.error("Local Load Error", e);
+            // 發生錯誤時重置為預設，避免程式崩潰
+            fruitCategories = JSON.parse(JSON.stringify(DEFAULT_FRUITS));
+        }
+    };
+
+    // ==========================================
+    // 4. 渲染邏輯 (UI Rendering)
+    // ==========================================
+
+    const renderAll = () => {
+        // 安全檢查
+        if (!DOM.characterListUl) return; 
+
         updateTitle();
-        renderCharacters();
-        renderOverviewCards(); 
-        renderBankSelectors(); 
-        renderStorageTable(); 
-        renderTable(); 
-        updatePresetCharacterSelect(); 
+        renderCharacters(); 
+        renderOverviewCards();
+        renderBankSelectors();
+        renderStorageTable();
+        renderTable();
+        updatePresetCharacterSelect();
         
         if (DOM.storageCharCount) DOM.storageCharCount.textContent = storageCharacters.length;
         if (DOM.uncompletedCharCount) DOM.uncompletedCharCount.textContent = getUncompletedCharacterCount();
-    }
-    
-    function renderOverviewCards() {
-        DOM.attackFruitsOverview.innerHTML = '';
-        DOM.otherFruitsOverview.innerHTML = '';
-        const usageData = getFruitUsageData();
-        const stockData = getTotalStockCounts();
-        const fragmentAttack = document.createDocumentFragment();
-        const fragmentOther = document.createDocumentFragment();
-        ['同族', '戰型', '擊種'].forEach(category => {
-            if (fruitCategories[category]) {
-                fruitCategories[category].forEach(f => {
-                    const totalStock = stockData[f] || 0;
-                    if ((usageData[f]?.total || 0) > 0 || totalStock > 0) {
-                        fragmentAttack.appendChild(createOverviewItem(f, usageData[f], totalStock));
-                    }
-                });
-            }
-        });
-        if (fruitCategories['其他']) {
-            fruitCategories['其他'].forEach(f => {
-                const totalStock = stockData[f] || 0;
-                if ((usageData[f]?.total || 0) > 0 || totalStock > 0) {
-                    fragmentOther.appendChild(createOverviewItem(f, usageData[f], totalStock));
-                }
-            });
-        }
-        DOM.attackFruitsOverview.appendChild(fragmentAttack);
-        DOM.otherFruitsOverview.appendChild(fragmentOther);
-    }
-    
-    function renderBankSelectors() {
-        DOM.bankFruitSelectors.innerHTML = '';
-        const allFruits = getAllFruits();
-        const defaultOption = '<option value="">(空)</option>';
-        const optionsHtml = allFruits.map(f => `<option value="${f}">${f}</option>`).join('');
-        const fragment = document.createDocumentFragment();
+    };
 
-        for (let i = 0; i < BANK_SLOTS; i++) {
-            const container = document.createElement('div');
-            container.className = 'inventory-item bank-slot';
-            const select = document.createElement('select');
-            select.innerHTML = defaultOption + optionsHtml;
-            select.value = bankAssignments[i] || '';
-            const fruitName = bankAssignments[i];
-            const neededSlots = getNeededCharacterSlots(fruitName);
-            const hasDestination = getAvailableDestinationSlots(fruitName);
-            select.onchange = () => {
-                bankAssignments[i] = select.value;
-                saveData();
-                renderAll(); 
-            };
-            container.innerHTML = `<strong>鳥籠 ${i + 1}</strong>`;
-            container.appendChild(select);
-            if (fruitName && (neededSlots.length > 0 || hasDestination.bank.length > 0 || hasDestination.storage.length > 0)) {
-                const transferBtn = document.createElement('button');
-                transferBtn.className = 'btn btn-green';
-                transferBtn.style.cssText = 'font-size: 12px; padding: 4px 8px; margin-top: 5px; width: 100%;';
-                transferBtn.textContent = `⚡ 轉移果實`; 
-                transferBtn.onclick = () => initTransferModal(fruitName, 'bank', i);
-                container.appendChild(transferBtn);
-            } else if (fruitName) {
-                const placeholder = document.createElement('div');
-                placeholder.textContent = '✓ 無需轉移或無空位';
-                placeholder.style.cssText = 'font-size: 12px; color: #28a745; margin-top: 5px;';
-                container.appendChild(placeholder);
-            }
-            fragment.appendChild(container);
-        }
-        DOM.bankFruitSelectors.appendChild(fragment);
-
-        document.getElementById('resetBank').onclick = async () => {
-            if (await customConfirm('確定重置所有 7 個鳥籠的果實種類？')) {
-                bankAssignments = Array(BANK_SLOTS).fill('');
-                saveData();
-                renderAll();
-            }
-        };
-    }
-
-    function renderCharacters(searchTerm = '') {
-        DOM.characterListUl.innerHTML = '';
+    const renderCharacters = (searchTerm = '') => {
         DOM.characterCount.textContent = characters.length;
-        const filtered = searchTerm ? characters.filter(n => n.toLowerCase().includes(searchTerm.toLowerCase())) : characters;
+        const term = (searchTerm || DOM.modalCharacterSearch.value || '').trim().toLowerCase();
+        
+        const filtered = term ? characters.filter(n => n.toLowerCase().includes(term)) : characters;
+
+        DOM.characterListUl.innerHTML = '';
         if (filtered.length === 0) {
             DOM.characterListUl.innerHTML = '<li style="text-align:center; color:#999; padding:10px;">無符合角色</li>';
             return;
         }
+
         const fragment = document.createDocumentFragment();
         filtered.forEach(name => {
             const li = document.createElement('li');
             li.className = 'character-list-item';
-            const span = document.createElement('span');
-            span.textContent = name;
-            
-            const actionDiv = document.createElement('div');
-            actionDiv.className = 'character-actions';
-            
-            const renameBtn = document.createElement('button');
-            // [修改] 將 btn-warning 改為 btn-edit (靛青色)
-            renameBtn.className = 'btn btn-edit';
-            renameBtn.style.cssText = "padding: 2px 8px; font-size: 12px;";
-            renameBtn.textContent = '✏️';
-            renameBtn.title = "重新命名";
-            renameBtn.onclick = () => renameCharacter(name, 'main');
-
-            const delBtn = document.createElement('button');
-            delBtn.className = 'btn btn-red';
-            delBtn.style.cssText = "padding: 2px 8px; font-size: 12px;";
-            delBtn.textContent = '🗑️';
-            delBtn.title = "刪除角色";
-            delBtn.onclick = async () => {
-                if (await customConfirm(`確定刪除「${name}」？`)) {
-                    characters = characters.filter(c => c !== name);
-                    delete fruitAssignments[name];
-                    delete fruitObtained[name];
-                    saveData();
-                    renderAll();
-                    renderCharacters(DOM.modalCharacterSearch.value);
-                }
-            };
-            
-            actionDiv.appendChild(renameBtn);
-            actionDiv.appendChild(delBtn);
-            
-            li.appendChild(span);
-            li.appendChild(actionDiv);
+            li.innerHTML = `
+                <span>${name}</span>
+                <div class="character-actions">
+                    <button class="btn btn-edit btn-rename" data-name="${name}" title="重新命名" style="padding: 2px 8px; font-size: 12px;">✏️</button>
+                    <button class="btn btn-red btn-delete" data-name="${name}" title="刪除角色" style="padding: 2px 8px; font-size: 12px;">🗑️</button>
+                </div>
+            `;
             fragment.appendChild(li);
         });
         DOM.characterListUl.appendChild(fragment);
-    }
-    
-    DOM.addStorageCharBtn.onclick = () => {
-        const name = DOM.newStorageChar.value.trim();
-        if (name && !storageCharacters.includes(name)) {
-            storageCharacters.push(name);
-            if (!storageAssignments[name]) storageAssignments[name] = ['', '', '', ''];
-            saveData();
-            renderAll();
-            DOM.newStorageChar.value = '';
-        } else if (storageCharacters.includes(name)) {
-            customAlert('倉庫角色已存在');
-        }
     };
-    DOM.searchStorageChar.oninput = () => renderStorageTable();
 
-    function renderStorageTable() {
+    const renderTable = () => {
+        DOM.fruitTableBody.innerHTML = '';
+        const term = DOM.searchInput.value.trim().toLowerCase();
+        const hideCompleted = DOM.hideCompletedCheckbox.checked;
+        const filterMode = DOM.filterModeCheckbox.checked;
+        const sortMode = DOM.sortCharacterBy.value;
+        const optionsHtml = generateFruitOptionsHTML();
+
+        let targetChars = [...characters];
+
+        if (hideCompleted) targetChars = targetChars.filter(n => !isCharacterCompleted(n));
+        if (filterMode && term) {
+            targetChars = targetChars.filter(name => {
+                if (name.toLowerCase().includes(term)) return true;
+                const assigned = fruitAssignments[name] || [];
+                return assigned.some(f => f && f.toLowerCase().includes(term));
+            });
+        }
+
+        if (sortMode.includes('unassigned')) {
+            const dir = sortMode === 'unassigned_asc' ? 1 : -1;
+            targetChars.sort((a, b) => (getUnassignedFruitCount(a) - getUnassignedFruitCount(b)) * dir);
+        }
+
+        if (targetChars.length === 0) {
+            DOM.fruitTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 15px;">無符合資料</td></tr>';
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        targetChars.forEach(name => {
+            const assigned = fruitAssignments[name] || [];
+            const obtained = fruitObtained[name] || [];
+            
+            const row = document.createElement('tr');
+            if (isCharacterCompleted(name)) row.classList.add('row-completed');
+            
+            const nameCell = document.createElement('td');
+            nameCell.textContent = name;
+            nameCell.setAttribute('data-label', '角色');
+            row.appendChild(nameCell);
+
+            for (let i = 0; i < 4; i++) {
+                const cell = document.createElement('td');
+                cell.setAttribute('data-label', `果實 ${i+1}`);
+                const hasFruit = !!assigned[i];
+                const isChecked = !!obtained[i];
+                cell.innerHTML = `
+                    <div class="select-wrapper">
+                        <select class="fruit-select" data-char="${name}" data-idx="${i}">
+                            ${optionsHtml}
+                        </select>
+                        <input type="checkbox" class="fruit-check" data-char="${name}" data-idx="${i}" 
+                               ${isChecked ? 'checked' : ''} style="display: ${hasFruit ? 'inline-block' : 'none'}">
+                    </div>
+                `;
+                const select = cell.querySelector('select');
+                if (select && assigned[i]) select.value = assigned[i];
+                row.appendChild(cell);
+            }
+            fragment.appendChild(row);
+        });
+        DOM.fruitTableBody.appendChild(fragment);
+    };
+
+    const renderStorageTable = () => {
         DOM.storageTableBody.innerHTML = '';
         const term = DOM.searchStorageChar.value.trim().toLowerCase();
+        const optionsHtml = generateFruitOptionsHTML();
+
         let targets = storageCharacters;
         if (term) {
             targets = targets.filter(name => {
@@ -1319,245 +552,237 @@ document.addEventListener('DOMContentLoaded', () => {
                 return assigned.some(f => f && f.toLowerCase().includes(term));
             });
         }
+
         if (targets.length === 0) {
             DOM.storageTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 15px;">無符合倉庫資料</td></tr>';
             return;
         }
-        const fruits = getAllFruits();
-        const defaultOption = '<option value="">(空)</option>';
-        const optionsHtml = fruits.map(f => `<option value="${f}">${f}</option>`).join('');
+
         const fragment = document.createDocumentFragment();
         targets.forEach(name => {
-            if (!storageAssignments[name] || storageAssignments[name].length !== 4) {
-                 storageAssignments[name] = (storageAssignments[name] || []).concat(['', '', '', '']).slice(0, 4);
-            }
+            // 安全檢查：雖然有 ensureDataIntegrity，但再次確認更保險
+            if (!storageAssignments[name]) storageAssignments[name] = ['', '', '', ''];
             const assigned = storageAssignments[name];
-            const row = document.createElement('tr');
-            const nameCell = document.createElement('td');
-            nameCell.textContent = name;
-            row.appendChild(nameCell);
             
-            let hasAnyFruit = false; 
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${name}</td>`;
+            
+            let hasAnyFruit = false;
             for (let i = 0; i < 4; i++) {
-                const cell = document.createElement('td');
-                const wrapper = document.createElement('div');
-                wrapper.style.display = 'flex';
-                wrapper.style.alignItems = 'center';
-                wrapper.style.gap = '5px';
-                const select = document.createElement('select');
-                select.innerHTML = defaultOption + optionsHtml;
-                select.value = assigned[i] || '';
-                select.style.width = '100%';
-                select.onchange = () => {
-                    storageAssignments[name][i] = select.value;
-                    saveData();
-                    renderAll(); 
-                };
-                wrapper.appendChild(select);
                 if (assigned[i]) hasAnyFruit = true;
-                cell.appendChild(wrapper);
+                const cell = document.createElement('td');
+                cell.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <select class="storage-select" data-char="${name}" data-idx="${i}" style="width:100%;">
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                `;
+                const select = cell.querySelector('select');
+                if (select) select.value = assigned[i] || '';
                 row.appendChild(cell);
             }
+
             const actionCell = document.createElement('td');
-            actionCell.style.display = 'flex';
-            actionCell.style.gap = '5px';
-            actionCell.style.alignItems = 'center';
-            actionCell.style.justifyContent = 'space-between'; 
-
-            const btnGroup = document.createElement('div');
-            btnGroup.style.display = 'flex';
-            btnGroup.style.gap = '5px';
-
-            const renameBtn = document.createElement('button');
-            // [修改] 將 btn-warning 改為 btn-edit (靛青色)
-            renameBtn.className = 'btn btn-edit';
-            renameBtn.textContent = '✏️';
-            renameBtn.style.padding = '8px 10px';
-            renameBtn.title = "重新命名";
-            renameBtn.onclick = () => renameCharacter(name, 'storage');
-
-            const delBtn = document.createElement('button');
-            delBtn.className = 'btn btn-red';
-            delBtn.textContent = '🗑️';
-            delBtn.style.padding = '8px 10px';
-            delBtn.title = "刪除角色";
-            delBtn.onclick = async () => {
-                if (await customConfirm(`確定刪除倉庫角色「${name}」？`)) {
-                    storageCharacters = storageCharacters.filter(c => c !== name);
-                    delete storageAssignments[name];
-                    saveData();
-                    renderAll(); 
-                }
-            };
-
-            btnGroup.appendChild(renameBtn);
-            btnGroup.appendChild(delBtn);
-            actionCell.appendChild(btnGroup);
-
+            actionCell.style.cssText = 'display:flex; gap:5px; align-items:center; justify-content:space-between;';
+            let btns = `
+                <div style="display:flex; gap:5px;">
+                    <button class="btn btn-edit btn-rename" data-name="${name}" title="重新命名" style="padding: 8px 10px;">✏️</button>
+                    <button class="btn btn-red btn-delete" data-name="${name}" title="刪除角色" style="padding: 8px 10px;">🗑️</button>
+                </div>
+            `;
             if (hasAnyFruit) {
-                const transferBtn = document.createElement('button');
-                transferBtn.className = 'btn btn-blue';
-                transferBtn.textContent = '⚡';
-                transferBtn.title = '移出果實';
-                transferBtn.style.padding = '8px 10px';
-                transferBtn.onclick = () => initTransferModal(null, 'storage', name);
-                actionCell.appendChild(transferBtn);
+                btns += `<button class="btn btn-blue btn-transfer" data-name="${name}" title="移出果實" style="padding: 8px 10px;">⚡</button>`;
             }
+            actionCell.innerHTML = btns;
             row.appendChild(actionCell);
             fragment.appendChild(row);
         });
         DOM.storageTableBody.appendChild(fragment);
-    }
+    };
 
-    function renderTable() {
-        DOM.fruitTableBody.innerHTML = '';
-        const searchTerm = DOM.searchInput.value.trim().toLowerCase();
-        const shouldFilter = DOM.filterModeCheckbox.checked;
-        const shouldHideCompleted = DOM.hideCompletedCheckbox.checked;
-        const sortMode = DOM.sortCharacterBy.value;
-        
-        let targetChars = characters;
-        if (shouldHideCompleted) targetChars = targetChars.filter(charName => !isCharacterCompleted(charName));
-        if (shouldFilter && searchTerm) {
-            targetChars = targetChars.filter(name => {
-                if (name.toLowerCase().includes(searchTerm)) return true;
-                const assigned = fruitAssignments[name] || [];
-                return assigned.some(fruit => fruit && fruit.toLowerCase().includes(searchTerm));
-            });
-        }
-        if (sortMode === 'unassigned_asc') {
-            targetChars.sort((a, b) => getUnassignedFruitCount(a) - getUnassignedFruitCount(b));
-        } else if (sortMode === 'unassigned_desc') {
-            targetChars.sort((a, b) => getUnassignedFruitCount(b) - getUnassignedFruitCount(a));
-        }
-        
-        if (targetChars.length === 0) {
-            DOM.fruitTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 15px;">無符合資料</td></tr>';
-            return;
-        }
-        const fruits = getAllFruits();
+    const renderBankSelectors = () => {
+        DOM.bankFruitSelectors.innerHTML = '';
+        const optionsHtml = generateFruitOptionsHTML();
         const fragment = document.createDocumentFragment();
-        const defaultOption = '<option value="">未選擇</option>';
-        const optionsHtml = fruits.map(f => `<option value="${f}">${f}</option>`).join('');
-        targetChars.forEach(name => {
-            const assigned = fruitAssignments[name] || [];
-            if (!fruitObtained[name]) fruitObtained[name] = [];
-            const finished = isCharacterCompleted(name);
-            const row = document.createElement('tr');
-            if (finished) row.classList.add('row-completed');
-            const nameCell = document.createElement('td');
-            nameCell.textContent = name;
-            nameCell.setAttribute('data-label', '角色');
-            row.appendChild(nameCell);
-            for (let i = 0; i < 4; i++) {
-                const cell = document.createElement('td');
-                cell.setAttribute('data-label', `果實 ${i+1}`);
-                const wrapper = document.createElement('div');
-                wrapper.className = 'select-wrapper';
-                const select = document.createElement('select');
-                select.innerHTML = defaultOption + optionsHtml;
-                if (assigned[i]) select.value = assigned[i];
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = !!(fruitObtained[name] && fruitObtained[name][i]); 
-                checkbox.style.display = assigned[i] ? 'inline-block' : 'none';
-                select.onchange = () => {
-                    if (!fruitAssignments[name]) fruitAssignments[name] = [];
-                    fruitAssignments[name][i] = select.value;
-                    if (!select.value) fruitObtained[name][i] = false;
-                    saveData();
-                    renderAll();
-                };
-                checkbox.onchange = () => {
-                    if (!fruitObtained[name]) fruitObtained[name] = [];
-                    fruitObtained[name][i] = checkbox.checked;
-                    saveData();
-                    renderAll();
-                };
-                wrapper.appendChild(select);
-                wrapper.appendChild(checkbox);
-                cell.appendChild(wrapper);
-                row.appendChild(cell);
-            }
-            fragment.appendChild(row);
-        });
-        DOM.fruitTableBody.appendChild(fragment);
-    }
 
-    function updatePresetCharacterSelect() {
-        const filtered = getFilteredCharacters(); 
+        for (let i = 0; i < BANK_SLOTS; i++) {
+            const container = document.createElement('div');
+            container.className = 'inventory-item bank-slot';
+            const select = document.createElement('select');
+            select.innerHTML = optionsHtml;
+            select.value = bankAssignments[i] || '';
+            
+            // 綁定事件
+            select.onchange = () => {
+                bankAssignments[i] = select.value;
+                saveData();
+                renderAll();
+            };
+
+            container.innerHTML = `<strong>鳥籠 ${i + 1}</strong>`;
+            container.appendChild(select);
+
+            const fruitName = bankAssignments[i];
+            if (fruitName) {
+                const neededSlots = getNeededCharacterSlots(fruitName);
+                const hasDestination = getAvailableDestinationSlots(fruitName);
+                if (neededSlots.length > 0 || hasDestination.bank.length > 0 || hasDestination.storage.length > 0) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-green';
+                    btn.style.cssText = 'font-size: 12px; padding: 4px 8px; margin-top: 5px; width: 100%;';
+                    btn.textContent = `⚡ 轉移果實`;
+                    btn.onclick = () => initTransferModal(fruitName, 'bank', i);
+                    container.appendChild(btn);
+                } else {
+                    const div = document.createElement('div');
+                    div.textContent = '✓ 無需轉移';
+                    div.style.cssText = 'font-size: 12px; color: #28a745; margin-top: 5px;';
+                    container.appendChild(div);
+                }
+            }
+            fragment.appendChild(container);
+        }
+        DOM.bankFruitSelectors.appendChild(fragment);
+    };
+
+    const renderOverviewCards = () => {
+        DOM.attackFruitsOverview.innerHTML = '';
+        DOM.otherFruitsOverview.innerHTML = '';
+        
+        const usageData = getFruitUsageData();
+        const stockData = getTotalStockCounts();
+        const fragAttack = document.createDocumentFragment();
+        const fragOther = document.createDocumentFragment();
+
+        const appendCard = (targetFrag, f) => {
+            const totalStock = stockData[f] || 0;
+            if ((usageData[f]?.total || 0) > 0 || totalStock > 0) {
+                targetFrag.appendChild(createOverviewItem(f, usageData[f], totalStock));
+            }
+        };
+
+        if (fruitCategories['同族']) fruitCategories['同族'].forEach(f => appendCard(fragAttack, f));
+        if (fruitCategories['戰型']) fruitCategories['戰型'].forEach(f => appendCard(fragAttack, f));
+        if (fruitCategories['擊種']) fruitCategories['擊種'].forEach(f => appendCard(fragAttack, f));
+        if (fruitCategories['其他']) fruitCategories['其他'].forEach(f => appendCard(fragOther, f));
+        
+        DOM.attackFruitsOverview.appendChild(fragAttack);
+        DOM.otherFruitsOverview.appendChild(fragOther);
+    };
+
+    const updatePresetCharacterSelect = () => {
         const term = DOM.searchInput.value.trim().toLowerCase();
-        const currentVal = DOM.presetCharacterSelect.value;
-        DOM.presetCharacterSelect.innerHTML = '<option value="">選擇角色</option>';
+        const filtered = getFilteredCharacters(); 
         const searchFiltered = term ? filtered.filter(n => n.toLowerCase().includes(term)) : filtered;
+        
+        const currentVal = DOM.presetCharacterSelect.value;
+        const fragment = document.createDocumentFragment();
+        const defOpt = document.createElement('option');
+        defOpt.value = "";
+        defOpt.textContent = "選擇角色";
+        fragment.appendChild(defOpt);
+
         searchFiltered.forEach(n => {
             const opt = document.createElement('option');
             opt.value = n; opt.textContent = n;
-            DOM.presetCharacterSelect.appendChild(opt);
+            fragment.appendChild(opt);
         });
+        
+        DOM.presetCharacterSelect.innerHTML = '';
+        DOM.presetCharacterSelect.appendChild(fragment);
+
         if (searchFiltered.includes(currentVal)) DOM.presetCharacterSelect.value = currentVal;
         else if (searchFiltered.length === 1) DOM.presetCharacterSelect.value = searchFiltered[0];
-    }
+    };
 
-    // [移除] 舊的 input 監聽事件
-    // DOM.recordName.oninput = () => { recordName = DOM.recordName.value; saveData(); updateTitle(); };
-    
-    document.getElementById('loadData').onclick = () => document.getElementById('loadFile').click();
-    document.getElementById('loadFile').onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            try {
-                let result = evt.target.result;
-                if (result.charCodeAt(0) === 0xFEFF) result = result.substr(1);
-                const d = JSON.parse(result);
-                characters = Array.isArray(d.characters) ? d.characters : [];
-                fruitAssignments = (typeof d.fruitAssignments === 'object') ? d.fruitAssignments : {};
-                if (d.fruitInventory && typeof d.fruitInventory === 'object' && !d.bankAssignments) {
-                    customAlert('偵測到舊版庫存資料，已嘗試自動轉換至新版 BANK 介面。');
-                    bankAssignments = Array(BANK_SLOTS).fill('');
-                } else {
-                    bankAssignments = Array.isArray(d.bankAssignments) ? d.bankAssignments : Array(BANK_SLOTS).fill('');
-                }
-                fruitCategories = (typeof d.fruitCategories === 'object') ? d.fruitCategories : JSON.parse(JSON.stringify(defaultFruits));
-                fruitObtained = (typeof d.fruitObtained === 'object') ? d.fruitObtained : {};
-                storageCharacters = Array.isArray(d.storageCharacters) ? d.storageCharacters : [];
-                storageAssignments = (typeof d.storageAssignments === 'object') ? d.storageAssignments : {};
-                recordName = typeof d.recordName === 'string' ? d.recordName : '';
-                for (let key in fruitObtained) {
-                    if (Array.isArray(fruitObtained[key])) fruitObtained[key] = fruitObtained[key].map(v => !!v);
-                }
+    // ==========================================
+    // 5. 事件監聽 (Event Delegation & Handling)
+    // ==========================================
+
+    DOM.characterListUl.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const name = btn.dataset.name;
+        
+        if (btn.classList.contains('btn-delete')) {
+            if (await customConfirm(`確定刪除「${name}」？`)) {
+                characters = characters.filter(c => c !== name);
+                delete fruitAssignments[name];
+                delete fruitObtained[name];
                 saveData();
                 renderAll();
-                customAlert(`成功載入：${recordName || '未命名紀錄'}`);
-            } catch (err) {
-                console.error(err);
-                customAlert('載入失敗：檔案格式錯誤。');
+                if (DOM.modalCharacterSearch.value) renderCharacters(DOM.modalCharacterSearch.value);
             }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    };
-    
-    document.getElementById('saveData').onclick = () => {
-        const now = new Date();
-        const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-        const data = { characters, fruitAssignments, bankAssignments, fruitCategories, fruitObtained, storageCharacters, storageAssignments, recordName };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = (recordName ? `${recordName}_${dateStr}.json` : `果實分配_${dateStr}.json`);
-        a.click();
-    };
+        } else if (btn.classList.contains('btn-rename')) {
+            renameCharacter(name, 'main');
+        }
+    });
 
-    DOM.searchInput.oninput = () => { renderTable(); updatePresetCharacterSelect(); };
-    DOM.filterModeCheckbox.onchange = () => renderTable();
-    DOM.hideCompletedCheckbox.onchange = () => { renderTable(); updatePresetCharacterSelect(); };
-    DOM.sortCharacterBy.onchange = () => { renderTable(); updatePresetCharacterSelect(); };
-    DOM.modalCharacterSearch.oninput = () => renderCharacters(DOM.modalCharacterSearch.value);
+    DOM.storageTableBody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('storage-select')) {
+            const { char, idx } = e.target.dataset;
+            if (storageAssignments[char]) {
+                storageAssignments[char][idx] = e.target.value;
+                saveData();
+                renderAll();
+            }
+        }
+    });
 
-    document.getElementById('addCharacter').onclick = () => {
+    DOM.storageTableBody.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const name = btn.dataset.name;
+
+        if (btn.classList.contains('btn-delete')) {
+            if (await customConfirm(`確定刪除倉庫角色「${name}」？`)) {
+                storageCharacters = storageCharacters.filter(c => c !== name);
+                delete storageAssignments[name];
+                saveData();
+                renderAll();
+            }
+        } else if (btn.classList.contains('btn-rename')) {
+            renameCharacter(name, 'storage');
+        } else if (btn.classList.contains('btn-transfer')) {
+            initTransferModal(null, 'storage', name);
+        }
+    });
+
+    DOM.fruitTableBody.addEventListener('change', (e) => {
+        const target = e.target;
+        const { char, idx } = target.dataset;
+        if (!char) return;
+
+        if (target.classList.contains('fruit-select')) {
+            if (!fruitAssignments[char]) fruitAssignments[char] = [];
+            fruitAssignments[char][idx] = target.value;
+            if (!target.value) fruitObtained[char][idx] = false;
+            
+            saveData();
+            renderAll();
+        } else if (target.classList.contains('fruit-check')) {
+            if (!fruitObtained[char]) fruitObtained[char] = [];
+            fruitObtained[char][idx] = target.checked;
+            
+            saveData();
+            renderAll();
+        }
+    });
+
+    DOM.searchInput.addEventListener('input', debounce(() => {
+        renderTable(); 
+        updatePresetCharacterSelect();
+    }, 300));
+
+    DOM.modalCharacterSearch.addEventListener('input', debounce((e) => {
+        renderCharacters(e.target.value);
+    }, 300));
+
+    DOM.searchStorageChar.addEventListener('input', debounce(() => renderStorageTable(), 300));
+
+    // 按鈕綁定 (增加檢查)
+    if(DOM.addCharacter) DOM.addCharacter.onclick = () => {
         const name = DOM.newCharacter.value.trim();
         if (name && !characters.includes(name)) {
             characters.push(name);
@@ -1567,30 +792,62 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (characters.includes(name)) customAlert('角色已存在');
     };
 
-    document.getElementById('showCharacterList').onclick = () => {
+    if(DOM.showCharacterList) DOM.showCharacterList.onclick = () => {
         DOM.modalCharacterSearch.value = '';
         renderCharacters();
         toggleModal(DOM.characterModal, true);
     };
 
-    document.querySelectorAll('.close-modal, .close-btn-action').forEach(btn => {
-        btn.onclick = () => toggleModal(btn.closest('.modal'), false);
-    });
+    if(DOM.resetCharacterList) DOM.resetCharacterList.onclick = async () => {
+        if (await customConfirm('重置清單？將清除所有主力角色。')) {
+            characters = [];
+            fruitAssignments = {};
+            fruitObtained = {};
+            saveData();
+            renderAll();
+        }
+    };
 
-    document.getElementById('addFruit').onclick = () => {
-        const name = document.getElementById('newFruitName').value.trim();
-        const cat = document.getElementById('newFruitCategory').value;
+    if(DOM.addStorageCharBtn) DOM.addStorageCharBtn.onclick = () => {
+        const name = DOM.newStorageChar.value.trim();
+        if (name && !storageCharacters.includes(name)) {
+            storageCharacters.push(name);
+            storageAssignments[name] = ['', '', '', ''];
+            saveData();
+            renderAll();
+            DOM.newStorageChar.value = '';
+        } else if (storageCharacters.includes(name)) customAlert('倉庫角色已存在');
+    };
+
+    if(DOM.saveSlotSelect) DOM.saveSlotSelect.onchange = (e) => changeSlot(e.target.value);
+    if(DOM.addSlotBtn) DOM.addSlotBtn.onclick = addSlot;
+    if(DOM.deleteSlotBtn) DOM.deleteSlotBtn.onclick = deleteSlot;
+    if(DOM.renameSlotBtn) DOM.renameSlotBtn.onclick = async () => {
+        const newName = await customInput('請輸入此存檔的名稱：', recordName);
+        if (newName !== null) { 
+            recordName = newName;
+            saveData();
+            updateTitle();
+        }
+    };
+
+    if(DOM.addFruit) DOM.addFruit.onclick = () => {
+        const name = DOM.newFruitName.value.trim();
+        const cat = DOM.newFruitCategory.value;
         if (!name) return customAlert('請輸入名稱');
         if (getAllFruits().includes(name)) return customAlert('果實已存在');
+        
         const target = cat === '加擊類' ? '同族' : '其他';
         if (!fruitCategories[target]) fruitCategories[target] = [];
         fruitCategories[target].push(name);
+        
         saveData();
+        applyData({ characters, fruitAssignments, fruitCategories, fruitObtained, bankAssignments, storageCharacters, storageAssignments, recordName });
         renderAll();
-        document.getElementById('newFruitName').value = '';
+        DOM.newFruitName.value = '';
     };
 
-    document.getElementById('deleteFruitBtn').onclick = () => {
+    if(DOM.deleteFruitBtn) DOM.deleteFruitBtn.onclick = () => {
         DOM.deleteFruitSelect.innerHTML = '<option value="">請選擇果實</option>';
         getAllFruits().forEach(f => {
             const opt = document.createElement('option');
@@ -1600,7 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleModal(DOM.deleteFruitModal, true);
     };
 
-    document.getElementById('confirmDeleteFruit').onclick = async () => {
+    if(DOM.confirmDeleteFruit) DOM.confirmDeleteFruit.onclick = async () => {
         const name = DOM.deleteFruitSelect.value;
         if (!name) return;
         if (await customConfirm(`確定刪除「${name}」？`)) {
@@ -1614,14 +871,17 @@ document.addEventListener('DOMContentLoaded', () => {
             Object.keys(storageAssignments).forEach(c => {
                 storageAssignments[c] = storageAssignments[c].map(f => f === name ? '' : f);
             });
+            
             saveData();
+            applyData({ characters, fruitAssignments, fruitCategories, fruitObtained, bankAssignments, storageCharacters, storageAssignments, recordName });
             renderAll();
             toggleModal(DOM.deleteFruitModal, false);
         }
     };
 
-    ['presetBtn1', 'presetBtn2', 'presetBtn3', 'presetBtn4'].forEach((id, idx) => {
-        document.getElementById(id).onclick = () => {
+    DOM.presetBtns.forEach((btn, idx) => {
+        if(!btn) return;
+        btn.onclick = () => {
             const char = DOM.presetCharacterSelect.value;
             if (!char) return customAlert('請先選擇角色');
             
@@ -1643,7 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    document.getElementById('resetPresetCharacter').onclick = async () => {
+    if(DOM.resetPresetCharacter) DOM.resetPresetCharacter.onclick = async () => {
         const char = DOM.presetCharacterSelect.value;
         if (!char) return customAlert('請先選擇角色');
         if (await customConfirm(`重置「${char}」的分配？`)) {
@@ -1653,7 +913,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderAll();
         }
     };
-    document.getElementById('resetAssignments').onclick = async () => {
+
+    if(DOM.resetAssignments) DOM.resetAssignments.onclick = async () => {
         if (await customConfirm('重置所有主力角色分配？')) {
             fruitAssignments = {};
             fruitObtained = {};
@@ -1661,55 +922,29 @@ document.addEventListener('DOMContentLoaded', () => {
             renderAll();
         }
     };
-    document.getElementById('resetCharacterList').onclick = async () => {
-        if (await customConfirm('重置清單？將清除所有主力角色。')) {
-            characters = [];
-            fruitAssignments = {};
-            fruitObtained = {};
-            saveData();
-            renderAll();
-        }
-    };
-    document.getElementById('resetAllData').onclick = async () => {
-        const slotName = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text;
-        if (await customConfirm(`⚠️ 確定要初始化【${slotName}】的所有資料嗎？此動作無法復原。`)) {
-            // 清除本地儲存 (僅清除當前 Slot)
-            localStorage.removeItem(getLocalKey('characters'));
-            localStorage.removeItem(getLocalKey('fruitAssignments'));
-            localStorage.removeItem(getLocalKey('fruitInventory'));
-            localStorage.removeItem(getLocalKey('fruitCategories'));
-            localStorage.removeItem(getLocalKey('fruitObtained'));
-            localStorage.removeItem(getLocalKey('bankAssignments'));
-            localStorage.removeItem(getLocalKey('storageCharacters'));
-            localStorage.removeItem(getLocalKey('storageAssignments'));
-            localStorage.removeItem(getLocalKey('recordName'));
 
-            // 重置記憶體變數
+    if(DOM.resetAllData) DOM.resetAllData.onclick = async () => {
+        const slotName = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text;
+        if (await customConfirm(`⚠️ 確定要初始化【${slotName}】的所有資料嗎？`)) {
+            const keys = ['characters','fruitAssignments','fruitInventory','fruitCategories','fruitObtained','bankAssignments','storageCharacters','storageAssignments','recordName'];
+            keys.forEach(k => localStorage.removeItem(getLocalKey(k)));
+            
             clearMemoryData();
             
-            // [新增] 清除該 Slot 的名稱快取
             const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
             delete cache[currentSlot];
             localStorage.setItem('slot_names_cache', JSON.stringify(cache));
-            updateSlotOptions();
+            updateTitle();
 
-            // 如果是雲端模式，也要清空雲端資料
             if (isCloudMode && currentUser && db) {
                 const { doc, setDoc } = window.firebaseModules;
-                const docId = getSaveDocName();
-                // 路徑
-                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", docId);
-                // 寫入空物件覆蓋
+                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", getSaveDocName());
                 await setDoc(userDocRef, {
-                    characters: [],
-                    fruitAssignments: {},
-                    fruitObtained: {},
-                    bankAssignments: Array(BANK_SLOTS).fill(''),
-                    storageCharacters: [],
-                    storageAssignments: {},
-                    recordName: '',
-                    lastUpdated: new Date()
+                    characters: [], fruitAssignments: {}, fruitObtained: {},
+                    bankAssignments: Array(BANK_SLOTS).fill(''), storageCharacters: [],
+                    storageAssignments: {}, recordName: '', lastUpdated: new Date()
                 });
+                sessionStorage.removeItem(DATA_CACHE_PREFIX + currentUser.uid);
                 updateCloudStatus('online', `雲端資料已清空 (${slotName})`);
             }
             renderAll();
@@ -1717,10 +952,281 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    if(DOM.saveDataBtn) DOM.saveDataBtn.onclick = () => {
+        const now = new Date();
+        const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+        const data = { characters, fruitAssignments, bankAssignments, fruitCategories, fruitObtained, storageCharacters, storageAssignments, recordName };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (recordName ? `${recordName}_${dateStr}.json` : `果實分配_${dateStr}.json`);
+        a.click();
+    };
+
+    if(DOM.loadDataBtn) DOM.loadDataBtn.onclick = () => DOM.loadFile.click();
+    if(DOM.loadFile) DOM.loadFile.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                let result = evt.target.result;
+                if (result.charCodeAt(0) === 0xFEFF) result = result.substr(1);
+                const d = JSON.parse(result);
+                applyData(d);
+                saveData();
+                renderAll();
+                customAlert(`成功載入：${recordName || '未命名紀錄'}`);
+            } catch (err) {
+                console.error(err);
+                customAlert('載入失敗：檔案格式錯誤。');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
+    if(DOM.resetBank) DOM.resetBank.onclick = async () => {
+        if (await customConfirm('確定重置所有 7 個鳥籠的果實種類？')) {
+            bankAssignments = Array(BANK_SLOTS).fill('');
+            saveData();
+            renderAll();
+        }
+    };
+
+    // 其他全域監聽
+    if(DOM.filterModeCheckbox) DOM.filterModeCheckbox.onchange = () => renderTable();
+    if(DOM.hideCompletedCheckbox) DOM.hideCompletedCheckbox.onchange = () => { renderTable(); updatePresetCharacterSelect(); };
+    if(DOM.sortCharacterBy) DOM.sortCharacterBy.onchange = () => { renderTable(); updatePresetCharacterSelect(); };
+    
+    document.querySelectorAll('.close-modal, .close-btn-action, .transfer-close').forEach(btn => {
+        btn.onclick = () => toggleModal(btn.closest('.modal'), false);
+    });
+    
     window.onclick = (e) => {
         if (e.target.classList.contains('modal')) toggleModal(e.target, false);
     };
 
-    // 啟動 App
+    // 啟動
     initApp();
+
+    // ==========================================
+    // 6. 其他輔助與異步邏輯
+    // ==========================================
+
+    async function renameCharacter(oldName, type) {
+        const newName = await customInput(`請輸入「${oldName}」的新名稱：`, oldName);
+        if (!newName || newName === oldName) return;
+        
+        if (type === 'main') {
+            if (characters.includes(newName)) return customAlert('此角色名稱已存在！');
+            const idx = characters.indexOf(oldName);
+            if (idx !== -1) characters[idx] = newName;
+            
+            if (fruitAssignments[oldName]) {
+                fruitAssignments[newName] = fruitAssignments[oldName];
+                delete fruitAssignments[oldName];
+            }
+            if (fruitObtained[oldName]) {
+                fruitObtained[newName] = fruitObtained[oldName];
+                delete fruitObtained[oldName];
+            }
+            if (DOM.modalCharacterSearch.value) renderCharacters(DOM.modalCharacterSearch.value);
+
+        } else {
+            if (storageCharacters.includes(newName)) return customAlert('此倉庫角色名稱已存在！');
+            const idx = storageCharacters.indexOf(oldName);
+            if (idx !== -1) storageCharacters[idx] = newName;
+            
+            if (storageAssignments[oldName]) {
+                storageAssignments[newName] = storageAssignments[oldName];
+                delete storageAssignments[oldName];
+            }
+        }
+        
+        saveData();
+        renderAll();
+        customAlert(`已將「${oldName}」更名為「${newName}」。`);
+    }
+
+    async function addSlot() {
+        const newSlotId = `slot_${Date.now()}`;
+        slotList.push(newSlotId);
+        localStorage.setItem('global_slot_list', JSON.stringify(slotList));
+        renderSlotOptions();
+        await changeSlot(newSlotId);
+        customAlert('已新增空白存檔。');
+    }
+
+    async function deleteSlot() {
+        if (slotList.length <= 1) return customAlert('至少保留一個存檔！');
+        if (currentSlot === 'default') return customAlert('無法刪除預設存檔。');
+
+        const slotName = DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex].text;
+        if (await customConfirm(`確定要刪除「${slotName}」嗎？`)) {
+            const deletedSlot = currentSlot;
+            slotList = slotList.filter(id => id !== deletedSlot);
+            localStorage.setItem('global_slot_list', JSON.stringify(slotList));
+            
+            const keys = ['characters','fruitAssignments','fruitCategories','fruitObtained','bankAssignments','storageCharacters','storageAssignments','recordName'];
+            keys.forEach(key => localStorage.removeItem(`${deletedSlot}_${key}`));
+            
+            const cache = JSON.parse(localStorage.getItem('slot_names_cache') || '{}');
+            delete cache[deletedSlot];
+            localStorage.setItem('slot_names_cache', JSON.stringify(cache));
+
+            await changeSlot('default');
+            customAlert(`已刪除「${slotName}」。`);
+        }
+    }
+
+    async function changeSlot(newSlot) {
+        await saveData(true); // Force Save
+        updateCloudStatus('saving', '切換存檔中...');
+        
+        currentSlot = newSlot;
+        if(DOM.saveSlotSelect) DOM.saveSlotSelect.value = newSlot;
+        clearMemoryData();
+        
+        if (isCloudMode && currentUser && db) {
+            try {
+                const { doc, getDoc } = window.firebaseModules;
+                const userDocRef = doc(db, "artifacts", envAppId, "users", currentUser.uid, "fruit_data", getSaveDocName());
+                const docSnap = await getDoc(userDocRef);
+                
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    applyData(data);
+                    sessionStorage.setItem(DATA_CACHE_PREFIX + currentUser.uid, JSON.stringify(data));
+                    updateCloudStatus('online', `已載入: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text}`);
+                } else {
+                    loadFromLocalStorage();
+                    updateCloudStatus('online', `新存檔: ${DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text}`);
+                }
+            } catch(e) {
+                console.error("Cloud Change Error", e);
+                loadFromLocalStorage();
+                updateCloudStatus('offline', '切換讀取失敗，使用本地');
+            }
+        } else {
+            loadFromLocalStorage();
+            localStorage.setItem('lastSelectedSlot', currentSlot);
+        }
+        renderAll();
+    }
+
+    function checkAuthCache() {
+        const cachedUserStr = sessionStorage.getItem(USER_CACHE_KEY);
+        if (cachedUserStr) {
+            try {
+                const cachedUser = JSON.parse(cachedUserStr);
+                renderAuthUI(cachedUser);
+                
+                const cachedDataStr = sessionStorage.getItem(DATA_CACHE_PREFIX + cachedUser.uid);
+                if (cachedDataStr) {
+                    const data = JSON.parse(cachedDataStr);
+                    applyData(data);
+                    const lastSlot = localStorage.getItem('lastSelectedSlot');
+                    if (lastSlot && slotList.includes(lastSlot)) currentSlot = lastSlot;
+                    
+                    renderAll();
+                    updateCloudStatus('online', '雲端就緒 (快取)');
+                }
+            } catch (e) {
+                console.warn('Cache Error', e);
+                sessionStorage.removeItem(USER_CACHE_KEY);
+            }
+        }
+    }
+
+    function renderAuthUI(user) {
+        if (user && DOM.userInfo) {
+            DOM.userInfo.style.display = 'flex';
+            DOM.userDisplayName.textContent = user.displayName || "使用者";
+            DOM.userAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || "User"}&background=random`;
+        } else if (DOM.userInfo) {
+            DOM.userInfo.style.display = 'none';
+        }
+    }
+
+    function initApp(retries = 0) {
+        if (retries === 0) {
+            checkAuthCache();
+            renderSlotOptions();
+            const lastSlot = localStorage.getItem('lastSelectedSlot');
+            if (lastSlot && slotList.includes(lastSlot)) {
+                currentSlot = lastSlot;
+                if(DOM.saveSlotSelect) DOM.saveSlotSelect.value = currentSlot;
+            }
+            
+            if (DOM.logoutBtn) {
+                DOM.logoutBtn.onclick = () => {
+                    if (window.firebaseModules?.signOut && auth) {
+                        window.firebaseModules.signOut(auth).then(() => {
+                             sessionStorage.removeItem(USER_CACHE_KEY);
+                             customAlert("已成功登出", "登出");
+                        });
+                    } else location.reload();
+                };
+            }
+        }
+
+        if (window.firebaseApp && window.firebaseAuth) {
+            db = window.firebaseDb;
+            auth = window.firebaseAuth;
+            envAppId = window.envAppId || 'default-app-id';
+            
+            window.onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                     sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify({
+                        uid: user.uid, displayName: user.displayName, photoURL: user.photoURL
+                     }));
+                     renderAuthUI(user);
+                     currentUser = user;
+                     isCloudMode = true; 
+                     
+                     if (characters.length === 0) updateCloudStatus('saving', '正在從雲端載入...');
+
+                     try {
+                        const { doc, getDoc } = window.firebaseModules;
+                        const userDocRef = doc(db, "artifacts", envAppId, "users", user.uid, "fruit_data", getSaveDocName());
+                        const docSnap = await getDoc(userDocRef);
+
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            sessionStorage.setItem(DATA_CACHE_PREFIX + user.uid, JSON.stringify(data));
+                            applyData(data);
+                            updateCloudStatus('online', `雲端就緒`);
+                            renderAll(); 
+                        } else {
+                            if (currentSlot === 'default' && localStorage.getItem('characters')) { 
+                                loadFromLocalStorage(); 
+                                saveData(); 
+                                customAlert(`歡迎！已備份本地資料至雲端。`);
+                            } else {
+                                updateTitle(); 
+                                updateCloudStatus('online', '雲端就緒 (新資料)');
+                                renderAll();
+                            }
+                        }
+                     } catch (e) {
+                        console.error("Auth Load Error", e);
+                        if (characters.length === 0) { loadFromLocalStorage(); renderAll(); }
+                        isCloudMode = false;
+                        updateCloudStatus('offline', '雲端讀取錯誤'); 
+                     }
+                } else {
+                     sessionStorage.removeItem(USER_CACHE_KEY);
+                     renderAuthUI(null);
+                     isCloudMode = false;
+                     updateCloudStatus('offline', '未偵測到帳戶 (離線模式)');
+                     if (characters.length === 0) { loadFromLocalStorage(); renderAll(); }
+                }
+            });
+        } else if (retries < 50) { 
+            setTimeout(() => initApp(retries + 1), 100);
+        } else {
+            if (characters.length === 0) { loadFromLocalStorage(); renderAll(); }
+        }
+    }
 });
