@@ -277,6 +277,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return assigned.every((val, idx) => !val || obtained[idx]);
     };
 
+    // 庫存計算邏輯：需確保排除幽靈資料
+    const getTotalStockCounts = () => {
+        const stockCounts = {};
+        
+        // 1. Bank
+        bankAssignments.forEach(fruitName => {
+            if (fruitName) stockCounts[fruitName] = (stockCounts[fruitName] || 0) + 1;
+        });
+
+        // 2. Storage (必須只計算在 storageCharacters 清單內的角色)
+        const validChars = new Set(storageCharacters);
+        Object.entries(storageAssignments).forEach(([charName, fruits]) => {
+            if (validChars.has(charName) && Array.isArray(fruits)) {
+                fruits.forEach(f => {
+                    if (f) stockCounts[f] = (stockCounts[f] || 0) + 1;
+                });
+            }
+        });
+        return stockCounts;
+    };
+
+    const getFruitUsageData = () => {
+        const usageMap = {};
+        // 必須只計算在 characters 清單內的角色
+        const validChars = new Set(characters);
+        
+        Object.entries(fruitAssignments).forEach(([charName, assigned]) => {
+            if (validChars.has(charName) && Array.isArray(assigned)) {
+                const obtained = fruitObtained[charName] || [];
+                assigned.forEach((fruitName, idx) => {
+                    if (!fruitName) return;
+                    if (!usageMap[fruitName]) usageMap[fruitName] = { total: 0, obtained: 0 };
+                    usageMap[fruitName].total++; 
+                    if (obtained[idx]) usageMap[fruitName].obtained++; 
+                });
+            }
+        });
+        return usageMap;
+    };
+
     // ==========================================
     // 3. 資料存取與雲端邏輯
     // ==========================================
@@ -358,6 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const performSave = async () => {
             try {
+                // 在存檔前先自我清理，確保不存入垃圾資料
+                ensureDataIntegrity();
+
                 const dataToSave = {
                     characters, fruitAssignments, fruitCategories, fruitObtained,
                     bankAssignments, storageCharacters, storageAssignments, recordName,
@@ -670,6 +713,347 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.attackFruitsOverview.appendChild(fragAttack);
         DOM.otherFruitsOverview.appendChild(fragOther);
     };
+
+    // 其他輔助函數
+    function createOverviewItem(fruitName, usageData, totalStock) {
+        const item = document.createElement('div');
+        item.className = 'inventory-item';
+        
+        const totalAssigned = usageData?.total || 0;
+        const obtainedCount = usageData?.obtained || 0; 
+        
+        const needed = totalAssigned - obtainedCount; 
+        const diff = totalStock - needed; 
+        
+        let diffText = '';
+        let diffClass = '';
+
+        if (diff === 0) {
+            diffText = '剛好';
+            diffClass = 'diff-ok';
+        } else if (diff > 0) {
+            diffText = `多 ${diff}`;
+            diffClass = 'diff-more';
+        } else {
+            diffText = `缺 ${Math.abs(diff)}`;
+            diffClass = 'diff-less';
+        }
+
+        item.innerHTML = `
+            <strong style="margin-bottom: 5px; text-align: center;">${fruitName}</strong>
+            <div class="status-indicator ${diffClass}">
+                ${diffClass === 'diff-less' ? '⚠️' : diffClass === 'diff-more' ? '📦' : '✓'} ${diffText}
+            </div>
+            <div class="overview-footer">
+                <span style="font-weight: bold;">分配: ${totalAssigned}</span>
+                <span>已獲得: ${obtainedCount}</span>
+                <span style="font-weight: bold;">庫存: ${totalStock}</span>
+            </div>
+        `;
+        return item;
+    }
+
+    function getNeededCharacterSlots(fruitName) {
+        const neededSlots = [];
+        characters.forEach(charName => {
+            const assigned = fruitAssignments[charName] || [];
+            const obtained = fruitObtained[charName] || [];
+            assigned.forEach((assignedFruit, index) => {
+                if (assignedFruit === fruitName && !obtained[index]) {
+                    neededSlots.push({
+                        char: charName,
+                        slot: index + 1,
+                        slotText: `果實 ${index + 1}`
+                    });
+                }
+            });
+        });
+        return neededSlots;
+    }
+
+    function getAvailableDestinationSlots(fruitName) {
+        const slots = {
+            main: [], 
+            bank: [], 
+            storage: [] 
+        };
+        slots.main = getNeededCharacterSlots(fruitName);
+        for (let i = 0; i < BANK_SLOTS; i++) {
+            if (!bankAssignments[i]) {
+                slots.bank.push({ id: i, name: `鳥籠 ${i + 1}`, text: `鳥籠 ${i + 1} (空)`});
+            }
+        }
+        storageCharacters.forEach(charName => {
+            const assigned = storageAssignments[charName] || [];
+            for (let index = 0; index < 4; index++) {
+                if (!assigned[index]) { 
+                    slots.storage.push({
+                        id: [charName, index],
+                        name: charName,
+                        text: `${charName} / 果實 ${index + 1} (空)`
+                    });
+                }
+            }
+        });
+        return slots;
+    }
+    
+    function loadDestinationTypes(fruitName) {
+        const allDestinations = getAvailableDestinationSlots(fruitName);
+        const hasMain = allDestinations.main.length > 0;
+        const hasBank = allDestinations.bank.length > 0;
+        const hasStorage = allDestinations.storage.length > 0;
+        
+        DOM.transferDestinationType.innerHTML = '<option value="">-- 請選擇目標類型 --</option>';
+        if (hasMain) DOM.transferDestinationType.innerHTML += `<option value="main">主力角色 (填補空缺) (${allDestinations.main.length} 需)</option>`;
+        if (hasBank) DOM.transferDestinationType.innerHTML += `<option value="bank">英雄 BANK (空閒鳥籠) (${allDestinations.bank.length} 空)</option>`;
+        if (hasStorage) DOM.transferDestinationType.innerHTML += `<option value="storage">倉庫角色 (空閒果實欄位) (${allDestinations.storage.length} 空)</option>`;
+
+        DOM.transferTargetSelect.innerHTML = '';
+        DOM.transferSlotSelect.innerHTML = '';
+        DOM.transferTargetContainer.style.display = 'none';
+        
+        DOM.transferDestinationType.onchange = () => {
+            const type = DOM.transferDestinationType.value;
+            DOM.transferTargetSelect.innerHTML = '';
+            DOM.transferSlotSelect.innerHTML = '';
+            DOM.transferTargetContainer.style.display = 'none';
+
+            if (!type) return;
+            
+            const destinations = allDestinations[type];
+            DOM.transferTargetContainer.style.display = 'block';
+            
+            if (type === 'bank') {
+                document.querySelector('#transferTargetContainer p:first-child').textContent = '目標鳥籠:';
+                document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '位置: (鳥籠只有一個位置)';
+
+                DOM.transferTargetSelect.innerHTML = '<option value="">請選擇空閒鳥籠</option>';
+                destinations.forEach(slot => {
+                    const option = document.createElement('option');
+                    option.value = slot.id; 
+                    option.textContent = slot.text;
+                    DOM.transferTargetSelect.appendChild(option);
+                });
+                DOM.transferSlotSelect.innerHTML = '<option value="0">唯一位置</option>';
+                DOM.transferSlotSelect.value = '0'; 
+                if (destinations.length === 1) {
+                    DOM.transferTargetSelect.value = destinations[0].id;
+                }
+            } else if (type === 'main') {
+                document.querySelector('#transferTargetContainer p:first-child').textContent = '目標主力角色:';
+                document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '目標果實欄位:';
+
+                DOM.transferTargetSelect.innerHTML = '<option value="">請選擇角色</option>';
+                const charOptions = {}; 
+                destinations.forEach(slot => {
+                    if (!charOptions[slot.char]) charOptions[slot.char] = [];
+                    charOptions[slot.char].push(slot);
+                });
+                Object.keys(charOptions).forEach(char => {
+                    const option = document.createElement('option');
+                    option.value = char;
+                    option.textContent = `${char} (${charOptions[char].length} 需)`;
+                    DOM.transferTargetSelect.appendChild(option);
+                });
+                DOM.transferTargetSelect.onchange = () => {
+                    const selectedChar = DOM.transferTargetSelect.value;
+                    DOM.transferSlotSelect.innerHTML = '<option value="">請選擇欄位</option>';
+                    if (selectedChar) {
+                        charOptions[selectedChar].forEach(slot => {
+                            const option = document.createElement('option');
+                            option.value = slot.slot - 1; 
+                            option.textContent = `${slot.slotText} (分配: ${fruitAssignments[selectedChar][slot.slot - 1]})`;
+                            DOM.transferSlotSelect.appendChild(option);
+                        });
+                    }
+                };
+            } else if (type === 'storage') {
+                document.querySelector('#transferTargetContainer p:first-child').textContent = '目標倉庫角色:';
+                document.querySelector('#transferTargetContainer p:nth-child(3)').textContent = '目標果實欄位:';
+                
+                DOM.transferTargetSelect.innerHTML = '<option value="">請選擇倉庫角色</option>';
+                const charOptions = {};
+                destinations.forEach(slot => {
+                    if (!charOptions[slot.name]) charOptions[slot.name] = [];
+                    charOptions[slot.name].push(slot);
+                });
+                Object.keys(charOptions).forEach(char => {
+                    const option = document.createElement('option');
+                    option.value = char;
+                    option.textContent = `${char} (${charOptions[char].length} 空位)`;
+                    DOM.transferTargetSelect.appendChild(option);
+                });
+                DOM.transferTargetSelect.onchange = () => {
+                    const selectedChar = DOM.transferTargetSelect.value;
+                    DOM.transferSlotSelect.innerHTML = '<option value="">請選擇空位</option>';
+                    if (selectedChar) {
+                        charOptions[selectedChar].forEach(slot => {
+                            const option = document.createElement('option');
+                            option.value = slot.id[1]; 
+                            option.textContent = slot.text.split(' / ')[1]; 
+                            DOM.transferSlotSelect.appendChild(option);
+                        });
+                    }
+                };
+            }
+        };
+
+        if (!hasMain && !hasBank && !hasStorage) {
+            DOM.transferDestinationType.innerHTML = '<option value="">無可用目標</option>';
+            DOM.transferDestinationType.disabled = true;
+        } else {
+            DOM.transferDestinationType.disabled = false;
+        }
+    }
+
+    function initTransferModal(fruitName, sourceType, sourceIdentifier) {
+        currentTransfer.sourceType = '';
+        currentTransfer.fruitName = '';
+        currentTransfer.sourceIndex = -1;
+        
+        DOM.transferTargetContainer.style.display = 'none';
+        DOM.transferDestinationType.value = '';
+        DOM.storageSourceSelector.style.display = 'none'; 
+        DOM.transferTargetSelect.innerHTML = '';
+        DOM.transferSlotSelect.innerHTML = '';
+        
+        if (sourceType === 'storage' && fruitName === null) {
+            const charName = sourceIdentifier;
+            const assigned = storageAssignments[charName] || [];
+            
+            storageSourceSlots = {}; 
+            let slotCount = 0;
+            assigned.forEach((fruit, index) => {
+                if (fruit) {
+                    slotCount++;
+                    const slotKey = `${charName}_${index}`;
+                    storageSourceSlots[slotKey] = {
+                        fruitName: fruit,
+                        slotIndex: index,
+                        text: `果實 ${index + 1} (${fruit})`
+                    };
+                }
+            });
+            
+            if (slotCount === 0) return customAlert(`倉庫角色「${charName}」目前沒有持有任何果實。`);
+            
+            DOM.storageSourceSelector.style.display = 'block';
+            DOM.transferSourceMessage.textContent = `來源：倉庫角色「${charName}」`;
+            DOM.transferDestinationType.disabled = true; 
+            
+            DOM.storageSourceSlotSelect.innerHTML = '<option value="">-- 請選擇要移出的果實 --</option>';
+            Object.keys(storageSourceSlots).forEach(key => {
+                const slot = storageSourceSlots[key];
+                const destinations = getAvailableDestinationSlots(slot.fruitName);
+                if (destinations.main.length > 0 || destinations.bank.length > 0 || destinations.storage.length > 0) {
+                    DOM.storageSourceSlotSelect.innerHTML += `<option value="${key}">${slot.text}</option>`;
+                }
+            });
+            
+            if (DOM.storageSourceSlotSelect.options.length <= 1) {
+                 return customAlert(`倉庫角色「${charName}」上所有果實都無處可轉移 (主力已獲或庫存已滿)。`);
+            }
+
+            DOM.storageSourceSlotSelect.onchange = () => {
+                const selectedKey = DOM.storageSourceSlotSelect.value;
+                if (selectedKey) {
+                    const slot = storageSourceSlots[selectedKey];
+                    currentTransfer.sourceType = 'storage';
+                    currentTransfer.fruitName = slot.fruitName;
+                    currentTransfer.sourceIndex = [charName, slot.slotIndex];
+                    DOM.transferSourceMessage.textContent = `來源：倉庫角色「${charName}」的果實 ${slot.slotIndex + 1} (「${slot.fruitName}」)`;
+                    
+                    DOM.transferDestinationType.disabled = false; 
+                    DOM.transferDestinationType.value = ''; 
+                    DOM.transferTargetContainer.style.display = 'none';
+                    loadDestinationTypes(slot.fruitName);
+                } else {
+                    DOM.transferDestinationType.disabled = true;
+                    DOM.transferDestinationType.innerHTML = '<option value="">-- 請選擇目標類型 --</option>';
+                    DOM.transferTargetContainer.style.display = 'none';
+                }
+            };
+            
+            if (DOM.storageSourceSlotSelect.options.length === 2) { 
+                DOM.storageSourceSlotSelect.value = DOM.storageSourceSlotSelect.options[1].value;
+                DOM.storageSourceSlotSelect.onchange(); 
+            }
+
+        } else if (fruitName) {
+            currentTransfer.sourceType = sourceType;
+            currentTransfer.fruitName = fruitName;
+            currentTransfer.sourceIndex = sourceIdentifier;
+            
+            let sourceMsg = '';
+            if (sourceType === 'bank') {
+                sourceMsg = `來源：英雄 BANK (鳥籠 ${sourceIdentifier + 1}) 的「${fruitName}」`;
+            } else if (sourceType === 'storage') {
+                const [charName, slotIndex] = sourceIdentifier;
+                sourceMsg = `來源：倉庫角色「${charName}」的果實 ${slotIndex + 1} (「${fruitName}」)`;
+            }
+            DOM.transferSourceMessage.textContent = sourceMsg;
+            DOM.transferDestinationType.disabled = false; 
+            loadDestinationTypes(fruitName); 
+        } else {
+            return customAlert('無法啟動轉移介面：果實名稱缺失。');
+        }
+        
+        DOM.confirmTransferBtn.onclick = () => performTransfer();
+        toggleModal(DOM.fruitTransferModal, true);
+    }
+    
+    function performTransfer() {
+        const targetType = DOM.transferDestinationType.value;
+        const targetContainer = DOM.transferTargetSelect.value;
+        let targetSlotIndex = parseInt(DOM.transferSlotSelect.value, 10);
+
+        if (!targetType || !targetContainer) return customAlert('請完整選擇目標類型和容器！');
+        if (targetType === 'bank') targetSlotIndex = 0; 
+        else if (isNaN(targetSlotIndex)) return customAlert('請完整選擇目標欄位！');
+
+        const { sourceType, fruitName, sourceIndex } = currentTransfer;
+        let transferSuccess = false;
+        
+        if (sourceType === 'bank') {
+            if (bankAssignments[sourceIndex] === fruitName) {
+                bankAssignments[sourceIndex] = '';
+                transferSuccess = true;
+            }
+        } else if (sourceType === 'storage') {
+            const [charName, slotIndex] = sourceIndex;
+            if (storageAssignments[charName] && storageAssignments[charName][slotIndex] === fruitName) {
+                storageAssignments[charName][slotIndex] = '';
+                transferSuccess = true;
+            }
+        }
+        
+        if (!transferSuccess) return customAlert('轉移失敗：來源果實狀態不正確或已被移除。');
+
+        let destinationText = '';
+        if (targetType === 'main') {
+            fruitObtained[targetContainer][targetSlotIndex] = true;
+            destinationText = `主力角色「${targetContainer}」的果實 ${targetSlotIndex + 1}`;
+        } else if (targetType === 'bank') {
+            const bankIndex = parseInt(targetContainer, 10);
+            bankAssignments[bankIndex] = fruitName;
+            destinationText = `英雄 BANK (鳥籠 ${bankIndex + 1})`;
+        } else if (targetType === 'storage') {
+            const charName = targetContainer;
+            if (!storageAssignments[charName]) storageAssignments[charName] = [];
+            storageAssignments[charName][targetSlotIndex] = fruitName;
+            destinationText = `倉庫角色「${charName}」的果實 ${targetSlotIndex + 1}`;
+        }
+
+        toggleModal(DOM.fruitTransferModal, false);
+        saveData();
+        renderAll();
+        customAlert(`成功將「${fruitName}」轉移至 ${destinationText}！`, '轉移成功');
+    }
+    
+    document.querySelectorAll('.transfer-close').forEach(btn => {
+        btn.onclick = () => toggleModal(DOM.fruitTransferModal, false);
+    });
 
     const updatePresetCharacterSelect = () => {
         const term = DOM.searchInput.value.trim().toLowerCase();
