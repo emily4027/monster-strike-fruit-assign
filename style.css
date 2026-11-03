@@ -424,6 +424,7 @@ tr.row-completed td:first-child {
 
 .select-wrapper { display: flex; align-items: center; gap: 8px; }
 .select-wrapper select { width: 100%; }
+.select-wrapper .btn-pull { padding: 2px 6px; font-size: 12px; flex-shrink: 0; }
 
 /* --- 懸浮工具箱樣式 --- */
 .toolbox-container {

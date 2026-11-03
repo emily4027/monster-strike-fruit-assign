@@ -29,6 +29,9 @@
 
         <div class="header-controls">
             
+            <!-- Google 登入按鈕 (未登入時由 JS 顯示) -->
+            <button type="button" id="google-login-btn" class="btn btn-blue" style="display: none;">🔑 Google 登入</button>
+
             <!-- 使用者資訊顯示區 -->
             <div id="user-info" style="display: none;">
                 <!-- 使用者頭像 -->
@@ -301,19 +304,32 @@
                 <option value="storage">倉庫角色 (空閒果實欄位)</option>
             </select>
             
-            <!-- 目標角色/鳥籠/欄位選擇容器 -->
+            <!-- 目標角色/鳥籠選擇容器 (欄位會自動選擇第一個可用的位置) -->
             <div id="transferTargetContainer">
                 <p style="margin-top: 15px;">目標容器:</p>
                 <select id="transferTargetSelect" class="full-width-input"></select>
-                
-                <p style="margin-top: 15px;">目標欄位/位置:</p>
-                <select id="transferSlotSelect" class="full-width-input"></select>
             </div>
 
             
             <div class="modal-footer">
                 <button class="transfer-close btn btn-gray">取消</button>
                 <button id="confirmTransferBtn" class="btn btn-green">確認轉移</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3-1. 搬入果實 Modal (從分配表把鳥籠 / 倉庫的果實搬給主力角色) -->
+    <div id="pullFruitModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>搬入果實</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <p id="pullFruitMessage" style="font-weight: bold;"></p>
+            <select id="pullSourceSelect" class="full-width-input"></select>
+            <div class="modal-footer">
+                <button class="close-btn-action btn btn-gray">取消</button>
+                <button id="confirmPullBtn" class="btn btn-green">確認搬入</button>
             </div>
         </div>
     </div>
@@ -357,7 +373,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         const firebaseConfig = {
@@ -379,7 +395,7 @@
         window.firebaseApp = app;
         window.firebaseAuth = auth;
         window.firebaseDb = db;
-        window.firebaseModules = { doc, getDoc, setDoc, signOut };
+        window.firebaseModules = { doc, getDoc, setDoc, signOut, GoogleAuthProvider, signInWithPopup };
         window.envAppId = appId;
 
         window.onAuthStateChanged = onAuthStateChanged;
