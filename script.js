@@ -1341,6 +1341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fragment = document.createDocumentFragment();
         const optionsHtml = '<option value="">未選擇</option>' + getFruitOptionsHtml();
         const stockCounts = getTotalStockCounts();
+        const usageData = getFruitUsageData();
 
         targetChars.forEach((name) => {
             const assigned = state.fruitAssignments[name] || [];
@@ -1388,7 +1389,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     pullBtn.type = 'button';
                     pullBtn.className = 'btn btn-blue btn-pull';
                     pullBtn.textContent = '📥';
-                    pullBtn.title = `從鳥籠 / 倉庫搬入「${assigned[i]}」(庫存 ${stockCounts[assigned[i]]})`;
+                    // 尚需 = 所有主力角色分配到此果實但未獲得的數量，讓使用者知道庫存夠不夠分
+                    const usage = usageData[assigned[i]];
+                    const stillNeeded = usage ? usage.total - usage.obtained : 0;
+                    pullBtn.title = `從鳥籠 / 倉庫搬入「${assigned[i]}」(庫存 ${stockCounts[assigned[i]]} / 尚需 ${stillNeeded})`;
                     pullBtn.onclick = () => initPullModal(name, i);
                     wrapper.appendChild(pullBtn);
                 }
