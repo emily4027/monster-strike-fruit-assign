@@ -29,6 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const USER_CACHE_KEY = 'fruit_user_cache_v1';
     const DATA_CACHE_PREFIX = 'fruit_data_cache_';
     const DEFAULT_SLOT_LIST = ['default', 'slot2', 'slot3', 'slot4'];
+    const LOCAL_SLOT_LIST_KEY = 'global_slot_list';          // localStorage：這台電腦 (離線) 的存檔清單
+    const LOCAL_SLOT_NAMES_KEY = 'slot_names_cache';         // localStorage：這台電腦 (離線) 的存檔名稱
+    const SLOT_LIST_DOC = 'fruit_slots';                     // 雲端：所有裝置共用的存檔清單
+    const SLOT_LIST_CACHE_PREFIX = 'fruit_slot_list_cache_'; // sessionStorage：雲端存檔清單快取
 
     const defaultFruits = {
         "同族": ["同族加擊", "同族加命擊", "同族加擊速"],
@@ -95,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return fallback;
         }
     };
+
+    const readLocalSlotList = () => readJson(LOCAL_SLOT_LIST_KEY, null) || [...DEFAULT_SLOT_LIST];
 
     const addOption = (select, value, text) => {
         const option = document.createElement('option');
@@ -200,8 +206,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let envAppId = 'default-app-id';
 
     // 存檔槽位
+    //   登入時 slotList 為雲端清單 (所有裝置共用)，未登入時為這台電腦的本機清單；
+    //   兩份清單分開保存，登出後會換回本機清單，雲端清單不會留在這台電腦上。
     let currentSlot = 'default';
-    let slotList = readJson('global_slot_list', null) || [...DEFAULT_SLOT_LIST];
+    let slotList = readLocalSlotList();
+    let slotSource = 'local';             // 'local' | 'cloud'：目前 slotList 的來源
+    let cloudSlotNames = {};              // 雲端清單中的存檔名稱
+    let cloudSlotListSynced = false;      // 已和雲端清單同步完成，之後的變更才寫回雲端
 
     // 所有存檔資料 (欄位見 DATA_FIELDS)
     let state = createDefaultState();
@@ -220,10 +231,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // =====================================================
     const localKeyFor = (slot, key) => (slot === 'default' ? key : `${slot}_${key}`);
     const getLocalKey = (key) => localKeyFor(currentSlot, key);
-    const getSaveDocName = () => (currentSlot === 'default' ? 'fruit_assign' : `fruit_assign_${currentSlot}`);
+    const getSaveDocName = (slot = currentSlot) => (slot === 'default' ? 'fruit_assign' : `fruit_assign_${slot}`);
 
-    const getSlotNameCache = () => readJson('slot_names_cache', {});
-    const setSlotNameCache = (cache) => localStorage.setItem('slot_names_cache', JSON.stringify(cache));
+    // 存檔名稱：依目前清單來源讀寫 (雲端清單的名稱有變動時會寫回雲端)
+    const getSlotNameCache = () => (slotSource === 'cloud' ? { ...cloudSlotNames } : readJson(LOCAL_SLOT_NAMES_KEY, {}));
+    function setSlotNameCache(cache) {
+        if (slotSource !== 'cloud') {
+            localStorage.setItem(LOCAL_SLOT_NAMES_KEY, JSON.stringify(cache));
+            return;
+        }
+        if (JSON.stringify(cache) === JSON.stringify(cloudSlotNames)) return;
+        cloudSlotNames = { ...cache };
+        persistSlotList();
+    }
 
     const getSelectedSlotText = (fallback = '') =>
         DOM.saveSlotSelect.options[DOM.saveSlotSelect.selectedIndex]?.text || fallback;
@@ -256,19 +276,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---- LocalStorage ----
+    // 讀取某個存檔在這台電腦上的資料 (不影響目前畫面)
+    function readLocalSlotData(slot) {
+        const data = createDefaultState();
+        DATA_FIELDS.forEach((field) => {
+            const item = localStorage.getItem(localKeyFor(slot, field));
+            if (field === 'recordName') data.recordName = item || '';
+            else if (item) data[field] = JSON.parse(item);
+        });
+        data.bankAssignments = normalizeBank(data.bankAssignments);
+        return data;
+    }
+
     function loadFromLocalStorage() {
         try {
-            state = createDefaultState();
-            DATA_FIELDS.forEach((field) => {
-                const item = localStorage.getItem(getLocalKey(field));
-                if (field === 'recordName') state.recordName = item || '';
-                else if (item) state[field] = JSON.parse(item);
-            });
-            state.bankAssignments = normalizeBank(state.bankAssignments);
+            state = readLocalSlotData(currentSlot);
             console.log(`[DATA] LocalStorage 載入成功 (Slot: ${currentSlot})`);
         } catch (e) {
+            state = createDefaultState();
             console.error('LocalStorage 讀取失敗', e);
         }
+    }
+
+    // 這台電腦上有資料的存檔 ID (預設存檔以外的存檔，key 為 `<存檔ID>_characters`)
+    function getLocalSlotIdsWithData() {
+        const suffix = '_characters';
+        return Object.keys(localStorage)
+            .filter((key) => key.endsWith(suffix))
+            .map((key) => key.slice(0, -suffix.length))
+            .filter((slot) => slot && slot !== 'default');
     }
 
     function saveToLocalStorage() {
@@ -285,9 +321,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---- 雲端 ----
-    const getCloudDocRef = (uid) => {
+    const getCloudDocRef = (uid, slot = currentSlot) => {
         const { doc } = window.firebaseModules;
-        return doc(db, 'artifacts', envAppId, 'users', uid, 'fruit_data', getSaveDocName());
+        return doc(db, 'artifacts', envAppId, 'users', uid, 'fruit_data', getSaveDocName(slot));
+    };
+
+    const getSlotListDocRef = (uid) => {
+        const { doc } = window.firebaseModules;
+        return doc(db, 'artifacts', envAppId, 'users', uid, 'fruit_data', SLOT_LIST_DOC);
     };
 
     // 雲端資料快取 (每個存檔槽位分開存，避免重新整理後套用到別的存檔)
@@ -352,9 +393,141 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.saveSlotSelect.value = currentSlot;
     }
 
-    async function changeSlot(newSlot) {
-        // 1. 先儲存當前進度 (強制立即執行並等待完成)
-        await saveData(true);
+    // ---- 存檔清單 (本機 / 雲端) ----
+    function useLocalSlotList() {
+        slotSource = 'local';
+        slotList = readLocalSlotList();
+        cloudSlotNames = {};
+        cloudSlotListSynced = false;
+    }
+
+    function useCloudSlotList(ids, names) {
+        slotSource = 'cloud';
+        slotList = ids.includes('default') ? [...ids] : ['default', ...ids];
+        cloudSlotNames = { ...names };
+        cacheCloudSlotList();
+    }
+
+    function cacheCloudSlotList() {
+        if (!currentUser) return;
+        sessionStorage.setItem(SLOT_LIST_CACHE_PREFIX + currentUser.uid, JSON.stringify({ ids: slotList, names: cloudSlotNames }));
+    }
+
+    // 重新整理時先用快取的雲端清單，不必等 Firebase
+    function restoreCachedCloudSlotList(uid) {
+        const cached = (() => {
+            try { return JSON.parse(sessionStorage.getItem(SLOT_LIST_CACHE_PREFIX + uid)); } catch (e) { return null; }
+        })();
+        if (!cached || !Array.isArray(cached.ids)) return;
+        slotSource = 'cloud';
+        slotList = cached.ids;
+        cloudSlotNames = asObject(cached.names, {});
+    }
+
+    // 切換到上次使用的存檔 (不在目前清單中時改用預設存檔)
+    function restoreLastSlot() {
+        const lastSlot = localStorage.getItem('lastSelectedSlot');
+        currentSlot = (lastSlot && slotList.includes(lastSlot)) ? lastSlot : 'default';
+    }
+
+    async function writeSlotListToCloud() {
+        const { setDoc } = window.firebaseModules;
+        const slots = slotList.map((id) => ({ id, name: cloudSlotNames[id] || '' }));
+        cacheCloudSlotList();
+        await setDoc(getSlotListDocRef(currentUser.uid), { slots, lastUpdated: new Date() });
+    }
+
+    // 存檔清單有變動時呼叫：雲端清單寫回雲端，本機清單寫入 localStorage
+    async function persistSlotList() {
+        if (slotSource !== 'cloud') {
+            localStorage.setItem(LOCAL_SLOT_LIST_KEY, JSON.stringify(slotList));
+            return true;
+        }
+        cacheCloudSlotList();
+        if (!(isCloudMode && currentUser && db && cloudSlotListSynced)) return true;
+        try {
+            await writeSlotListToCloud();
+            return true;
+        } catch (e) {
+            console.error('[CLOUD] 存檔清單同步失敗', e);
+            updateCloudStatus('offline', '存檔清單同步失敗');
+            return false;
+        }
+    }
+
+    // 登入時同步存檔清單：雲端還沒有清單就上傳本機清單，已有清單則以雲端為準
+    async function syncSlotListOnLogin(uid) {
+        const { getDoc } = window.firebaseModules;
+        const localNames = readJson(LOCAL_SLOT_NAMES_KEY, {});
+        const snap = await getDoc(getSlotListDocRef(uid));
+        const cloudSlots = snap.exists() && Array.isArray(snap.data().slots)
+            ? snap.data().slots.filter((s) => s && typeof s.id === 'string')
+            : null;
+
+        if (!cloudSlots) {
+            const ids = readLocalSlotList();
+            const names = {};
+            ids.forEach((id) => { if (localNames[id]) names[id] = localNames[id]; });
+            useCloudSlotList(ids, names);
+            cloudSlotListSynced = true;
+            await writeSlotListToCloud();
+            await uploadLocalSlotData(uid, ids);
+        } else {
+            const names = {};
+            cloudSlots.forEach((s) => { if (s.name) names[s.id] = s.name; });
+            useCloudSlotList(cloudSlots.map((s) => s.id), names);
+            cloudSlotListSynced = true;
+            await offerUploadLocalOnlySlots(uid, localNames);
+        }
+
+        restoreLastSlot();
+        renderSlotOptions();
+    }
+
+    // 第一次同步清單時，把清單中「本機有資料、雲端還沒有」的存檔一起上傳，
+    // 避免其他裝置看到存檔名稱卻打開是空的
+    async function uploadLocalSlotData(uid, ids) {
+        const { getDoc, setDoc } = window.firebaseModules;
+        for (const id of ids) {
+            if (!localStorage.getItem(localKeyFor(id, 'characters'))) continue;
+            const ref = getCloudDocRef(uid, id);
+            if ((await getDoc(ref)).exists()) continue;
+            await setDoc(ref, { ...readLocalSlotData(id), lastUpdated: new Date() });
+        }
+    }
+
+    // 這台電腦有資料、但不在雲端清單的存檔：詢問是否加入雲端 (取消的話下次登入會再問)
+    async function offerUploadLocalOnlySlots(uid, localNames) {
+        const pending = getLocalSlotIdsWithData().filter((id) => !slotList.includes(id));
+        if (pending.length === 0) return;
+
+        const labelOf = (id) => localNames[id] || localStorage.getItem(localKeyFor(id, 'recordName')) || id;
+        const labels = pending.map((id) => `「${labelOf(id)}」`).join('、');
+        const ok = await customConfirm(
+            `這台電腦有 ${pending.length} 個存檔不在雲端清單中：${labels}。要加入雲端清單並上傳嗎？（按取消的話，下次登入會再詢問）`,
+            '發現本機存檔'
+        );
+        if (!ok) return;
+
+        try {
+            const { setDoc } = window.firebaseModules;
+            for (const id of pending) {
+                await setDoc(getCloudDocRef(uid, id), { ...readLocalSlotData(id), lastUpdated: new Date() });
+                slotList.push(id);
+                cloudSlotNames[id] = labelOf(id);
+            }
+            await writeSlotListToCloud();
+            customAlert(`已將 ${pending.length} 個本機存檔加入雲端。`);
+        } catch (e) {
+            console.error('[CLOUD] 上傳本機存檔失敗', e);
+            customAlert('上傳本機存檔失敗，下次登入時會再詢問。');
+        }
+    }
+
+    async function changeSlot(newSlot, { skipSave = false } = {}) {
+        // 1. 先儲存當前進度 (強制立即執行並等待完成；刪除存檔後切換時不再存回被刪除的存檔)
+        if (skipSave) clearTimeout(saveTimeout);
+        else await saveData(true);
 
         updateCloudStatus('saving', '切換存檔中...');
 
@@ -399,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function addSlot() {
         const newSlotId = `slot_${Date.now()}`;
         slotList.push(newSlotId);
-        localStorage.setItem('global_slot_list', JSON.stringify(slotList));
+        await persistSlotList();
         renderSlotOptions();
 
         await changeSlot(newSlotId);
@@ -411,21 +584,45 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentSlot === 'default') return customAlert('無法刪除預設存檔，請先切換到其他存檔再進行操作，或直接使用「全部初始化」功能。');
 
         const slotName = getSelectedSlotText();
-        if (await customConfirm(`確定要刪除「${slotName}」嗎？此操作無法復原。`)) {
-            const deletedSlot = currentSlot;
+        if (!(await customConfirm(`確定要刪除「${slotName}」嗎？此操作無法復原。`))) return;
 
-            slotList = slotList.filter((id) => id !== deletedSlot);
-            localStorage.setItem('global_slot_list', JSON.stringify(slotList));
-            clearLocalSlotData(deletedSlot);
-            if (currentUser) sessionStorage.removeItem(getDataCacheKey(currentUser.uid, deletedSlot));
+        const deletedSlot = currentSlot;
+        const useCloud = isCloudMode && currentUser && db;
 
-            const cache = getSlotNameCache();
-            delete cache[deletedSlot];
-            setSlotNameCache(cache);
+        // 登入時要再確認一次，才會連雲端資料一起刪除；按取消則完全不刪
+        if (useCloud) {
+            const ok = await customConfirm(
+                `「${slotName}」在雲端也有資料，刪除後所有裝置都會看不到，而且無法復原。確定要連雲端一起刪除嗎？`,
+                '再次確認：刪除雲端資料'
+            );
+            if (!ok) return;
 
-            await changeSlot('default');
-            customAlert(`已刪除「${slotName}」。`);
+            clearTimeout(saveTimeout);   // 避免尚未送出的儲存在刪除後又把資料寫回雲端
+            try {
+                const { deleteDoc } = window.firebaseModules;
+                await deleteDoc(getCloudDocRef(currentUser.uid, deletedSlot));
+            } catch (e) {
+                console.error('[CLOUD] 刪除雲端存檔失敗', e);
+                return customAlert('刪除失敗：無法刪除雲端資料，請檢查網路後再試一次。存檔沒有被刪除。');
+            }
+            sessionStorage.removeItem(getDataCacheKey(currentUser.uid, deletedSlot));
+            delete cloudSlotNames[deletedSlot];
         }
+
+        // 這台電腦上的資料、本機清單與名稱也一併移除 (避免下次登入時被當成本機存檔再詢問上傳)
+        clearLocalSlotData(deletedSlot);
+        localStorage.setItem(LOCAL_SLOT_LIST_KEY, JSON.stringify(readLocalSlotList().filter((id) => id !== deletedSlot)));
+        const localNames = readJson(LOCAL_SLOT_NAMES_KEY, {});
+        delete localNames[deletedSlot];
+        localStorage.setItem(LOCAL_SLOT_NAMES_KEY, JSON.stringify(localNames));
+
+        slotList = slotList.filter((id) => id !== deletedSlot);
+        const listSaved = await persistSlotList();
+
+        await changeSlot('default', { skipSave: true });
+        customAlert(listSaved
+            ? `已刪除「${slotName}」。`
+            : `已刪除「${slotName}」的資料，但雲端存檔清單更新失敗，其他裝置可能仍會看到這個（已清空的）存檔。`);
     }
 
 
@@ -442,6 +639,15 @@ document.addEventListener('DOMContentLoaded', () => {
             DOM.userInfo.style.display = 'none';
         }
         if (DOM.loginBtn) DOM.loginBtn.style.display = userData ? 'none' : 'inline-block';
+    }
+
+    function readCachedUser() {
+        try {
+            const cached = JSON.parse(sessionStorage.getItem(USER_CACHE_KEY));
+            return cached && cached.uid ? cached : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     // 從 sessionStorage 快取立即還原畫面 (不用等 Firebase)
@@ -480,6 +686,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.characters.length === 0) updateCloudStatus('saving', '正在從雲端載入...');
 
         try {
+            // 先同步存檔清單 (可能會切換 currentSlot)，再讀取目前存檔的資料
+            const slotBefore = currentSlot;
+            await syncSlotListOnLogin(user.uid);
+            if (currentSlot !== slotBefore) clearMemoryData();
+
             const { getDoc } = window.firebaseModules;
             const docSnap = await getDoc(getCloudDocRef(user.uid));
             isCloudLoading = false;
@@ -491,8 +702,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 applyData(data);
                 updateCloudStatus('online', `雲端就緒 (${getSelectedSlotText()})`);
                 renderAll();
-            } else if (currentSlot === 'default' && localStorage.getItem('characters')) {
-                // 雲端無資料：把瀏覽器本地資料備份上雲端
+            } else if (localStorage.getItem(localKeyFor(currentSlot, 'characters'))) {
+                // 雲端無資料：把瀏覽器本地資料備份上雲端 (與切換存檔時相同，改用本機資料)
                 loadFromLocalStorage();
                 saveData();
                 renderAll();
@@ -506,10 +717,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             isCloudLoading = false;
             console.error('[CLOUD] 讀取雲端資料錯誤', e);
-            if (state.characters.length === 0) {
-                loadFromLocalStorage();
-                renderAll();
-            }
+            // 雲端讀取失敗：改回本機清單與本機資料
+            useLocalSlotList();
+            restoreLastSlot();
+            renderSlotOptions();
+            loadFromLocalStorage();
+            renderAll();
             isCloudMode = false;
             updateTitle();
             updateCloudStatus('offline', '雲端讀取錯誤');
@@ -519,7 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 清除所有雲端資料快取 (登出後不留在這台電腦上)
     function clearCloudDataCache() {
         Object.keys(sessionStorage)
-            .filter((key) => key.startsWith(DATA_CACHE_PREFIX))
+            .filter((key) => key.startsWith(DATA_CACHE_PREFIX) || key.startsWith(SLOT_LIST_CACHE_PREFIX))
             .forEach((key) => sessionStorage.removeItem(key));
     }
 
@@ -530,6 +743,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isCloudMode = false;
         isCloudLoading = false;
         clearCloudDataCache();
+        useLocalSlotList();
+        restoreLastSlot();
+        renderSlotOptions();
         updateCloudStatus('offline', '未偵測到帳戶 (離線模式)');
         loadFromLocalStorage();
         renderAll();
@@ -571,8 +787,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initApp() {
-        const lastSlot = localStorage.getItem('lastSelectedSlot');
-        if (lastSlot && slotList.includes(lastSlot)) currentSlot = lastSlot;
+        // 已登入過 (有快取)：先套用快取的雲端存檔清單，再還原上次的存檔
+        const cachedUser = readCachedUser();
+        if (cachedUser) restoreCachedCloudSlotList(cachedUser.uid);
+        restoreLastSlot();
 
         checkAuthCache();
         renderSlotOptions();
