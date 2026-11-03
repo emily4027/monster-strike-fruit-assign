@@ -4,6 +4,7 @@
 管理角色的果實需求、盤點庫存，並透過雲端同步在不同裝置存取資料。
 
 🔗 **線上使用**：https://emily4027.github.io/monster-strike-fruit-assign/
+
 🧰 **工具箱首頁**：https://emily4027.github.io/monster-strike-toolbox/
 
 ---
