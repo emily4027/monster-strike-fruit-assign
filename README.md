@@ -1,72 +1,120 @@
-# **🍏 怪物彈珠 \- 果實分配助手 (Monster Strike Fruit Allocator)**
+# 🍏 怪物彈珠 - 果實分配助手 (Monster Strike Fruit Allocator)
 
-這是一個專為《怪物彈珠》玩家設計的現代化網頁工具，旨在解決「果實分配複雜、庫存難以計算」的痛點。  
-透過直覺的介面，玩家可以管理角色需求、盤點背包庫存，並利用雲端同步功能隨時隨地存取資料。
+為《怪物彈珠》玩家設計的網頁工具，解決「果實分配複雜、庫存難以計算」的問題。
+管理角色的果實需求、盤點庫存，並透過雲端同步在不同裝置存取資料。
 
-## **✨ 核心功能**
+🔗 **線上使用**：https://emily4027.github.io/monster-strike-fruit-assign/
+🧰 **工具箱首頁**：https://emily4027.github.io/monster-strike-toolbox/
 
-### **1\. ☁️ 雲端同步與多重存檔 (New\!)**
+---
 
-* **Firebase 整合**：支援 Google 帳號登入，資料自動同步至雲端，換裝置也能無縫接軌。  
-* **多重存檔槽位**：提供 **5 個獨立存檔**（Slot 1 \~ Slot 5），可針對不同帳號（本帳/小號）或不同用途分別管理。  
-* **離線備援**：若無網路或未登入，系統自動切換至 LocalStorage 模式，確保資料不遺失。  
-* **手動備份**：支援匯出/匯入 JSON 檔案，資料掌握在自己手中。
+## ✨ 功能
 
-### **2\. 🎒 智慧庫存管理**
+### ☁️ 雲端同步與多重存檔
+- **Google 登入 (Firebase Authentication)**：登入在[工具箱首頁](https://emily4027.github.io/monster-strike-toolbox/)完成，本頁沿用登入狀態；頁首顯示頭像、名稱與登出鈕。
+- **自動儲存**：編輯後約 1 秒自動寫入 Firestore，頁首狀態燈號會顯示「雲端 / 儲存中 / 離線」。
+- **多重存檔**：預設 4 個存檔，可 ➕ 新增、🗑️ 刪除（預設存檔不可刪）、✏️ 重新命名；選單優先顯示存檔名稱，頁面標題顯示為「○○的果實分配」。
+- **離線備援**：未登入或雲端讀取失敗時，自動使用瀏覽器 LocalStorage。
+- **手動備份**：可下載 / 載入 JSON 備份檔；「🔥 全部初始化」只會重置**目前選取的存檔**。
+- **快速開啟**：已登入的使用者會從 sessionStorage 快取立即還原畫面，不必等待雲端載入。
 
-* **英雄 BANK (鳥籠)**：模擬遊戲內建的 7 個鳥籠欄位，視覺化管理。  
-* **角色暫存箱 (倉庫)**：支援建立「倉庫角色」（如 4 星角），用於暫存多餘的果實。  
-* **智慧計算**：  
-  * **自動統計**：系統會自動加總「主力需求」與「已獲得」，並扣除「現有庫存」。  
-  * **狀態燈號**：即時顯示 **充足 (✓)**、**剩餘 (+)** 或 **短缺 (-)**，補貨目標一目了然。
+### 🎒 庫存管理
+- **英雄 BANK**：對應遊戲內 7 個鳥籠，每個鳥籠可指定一種果實。
+- **角色暫存箱**：可建立「倉庫角色」（例如 4 星角），每位有 4 個果實欄位，用來暫存多餘果實。
+- **自訂果實類型**：可新增果實（歸類為「加擊類」或「其他」）或刪除果實；刪除時會一併清除各處的分配與庫存。
+- **總覽儀表板**：左側「加擊類」、右側「其他類」，每種果實顯示 **分配 / 已獲得 / 庫存**，並以狀態判斷是否足夠：
 
-### **3\. 👥 角色與分配管理**
+  | 顯示 | 意義 |
+  |------|------|
+  | ✓ 剛好 | 庫存 = 尚未取得的需求 |
+  | 📦 多 N | 庫存多出 N 顆 |
+  | ⚠️ 缺 N | 還缺 N 顆 |
 
-* **主力清單**：建立需要安裝果實的角色，支援搜尋與篩選。  
-* **進度追蹤**：每顆果實皆有獨立 Checkbox，勾選代表「已獲得」。  
-* **快速組合 (Presets)**：一鍵套用常用配置：  
-  * 同族加擊全套 / 戰型加擊全套 / 擊種加擊全套  
-  * 速必雙削組合 (將命/兵命/速必)  
-* **智慧轉移**：提供「轉移介面」，可輕鬆將果實從 **鳥籠/倉庫** 移至 **主力角色** 身上。
+  > 計算方式：尚需 = 分配 − 已獲得；差額 = 庫存 − 尚需。庫存 = 英雄 BANK + 角色暫存箱。
 
-### **4\. 📱 現代化 UI 設計**
+### 👥 角色與果實分配
+- **主力角色清單**：新增、搜尋、重新命名、刪除角色（更名時分配與已獲得狀態會一併轉移，並防止重複名稱）。
+- **分配表**：每位角色 4 個果實欄位，每顆果實有獨立勾選框，勾選代表「已獲得」；全部完成的角色整列以綠色標示。
+- **搜尋與排序**：可搜尋角色名稱或果實，可選「僅顯示搜尋結果」「隱藏已完成分配」，並依「未完成分配數量」由少到多或由多到少排序；標題旁顯示待辦角色數。
+- **快速分配組合**：選擇角色後一鍵套用：
 
-* **RWD 響應式設計**：完美支援手機版，表格自動轉為卡片式佈局，操作更順手。  
-* **排序與篩選**：支援依「未完成數量」排序，優先處理缺果實的角色。
+  | 按鈕 | 果實 |
+  |------|------|
+  | 同族組合 | 同族加擊、同族加命擊、同族加擊速 |
+  | 戰型組合 | 戰型加擊、戰型加命擊、戰型加擊速 |
+  | 擊種組合 | 擊種加擊、擊種加命擊、擊種加擊速 |
+  | 速必雙削 | 將消、兵消、速必 |
 
-## **🚀 快速開始**
+### ⚡ 果實轉移
+從「英雄 BANK」或「倉庫角色」將果實移到：
+- **主力角色**：填補尚缺的欄位，並自動標記為「已獲得」；
+- **英雄 BANK**：移到空閒鳥籠；
+- **倉庫角色**：移到空的果實欄位。
 
-### **線上使用**
+### 📱 其他
+- **RWD**：手機版表格自動轉為卡片式排版。
+- **懸浮工具箱**：右下角可快速前往工具箱首頁與其他工具；左下角為 GitHub 連結。
 
-直接訪問 GitHub Pages：[https://emily4027.github.io/monster-strike-fruit-assign/](https://emily4027.github.io/monster-strike-fruit-assign/)
+---
 
-### **本地開發**
+## 🚀 快速開始
 
-本專案為靜態網頁，但包含 Firebase SDK 整合。
+### 線上使用
+直接開啟：https://emily4027.github.io/monster-strike-fruit-assign/
+如需雲端同步，請先到[工具箱首頁](https://emily4027.github.io/monster-strike-toolbox/)登入 Google 帳號。
 
-1. Clone 專案：
-````markdown  
-   git clone [https://github.com/emily4027/monster-strike-fruit-assign.git](https://github.com/emily4027/monster-strike-fruit-assign.git)
-````
-2. 直接使用瀏覽器開啟 ````  index.html````   即可（部分 Firebase 功能需在 HTTPS 或 localhost 環境下運作）。
+### 本地開發
+本專案為純靜態網頁，但整合了 Firebase，**請透過本機伺服器開啟**，不要直接用 `file://` 開啟 `index.html`：
 
-## **📂 檔案結構**
+```bash
+git clone https://github.com/emily4027/monster-strike-fruit-assign.git
+cd monster-strike-fruit-assign
 
-````markdown  .  
-├── index.html      # 主程式介面  
-├── style.css       # 樣式表 (包含 Glassmorphism, RWD 設定)  
-├── script.js       # 核心邏輯 (Firebase 串接, DOM 操作, 資料計算)  
-├── CHANGELOG.md    # 更新日誌  
+# 任選一種方式啟動本機伺服器
+python -m http.server 8000     # 然後開啟 http://localhost:8000
+# 或使用 VS Code 的 Live Server 擴充功能
+```
+
+未登入時會以離線模式運作（資料存在瀏覽器 LocalStorage）。
+
+---
+
+## 📂 檔案結構
+
+```
+.
+├── index.html      # 頁面結構、Modal、Firebase SDK 載入
+├── style.css       # 樣式與 RWD 設定
+├── script.js       # 核心邏輯
+├── CHANGELOG.md    # 更新日誌
 └── README.md       # 專案說明
-````
-## **🛠 技術堆疊**
+```
 
-* **Frontend**: HTML5, CSS3 (Variables, Flexbox/Grid), Vanilla JavaScript (ES6+)  
-* **Backend (Baas)**: Google Firebase (Authentication, Firestore)  
-* **Storage**: LocalStorage (離線 fallback)  
-* **Fonts**: Google Fonts (Noto Sans TC)
+---
 
-## **📝 授權與備註**
+## 🧩 開發筆記 (新增功能前先看)
 
-* 本專案為非官方粉絲製作工具，與 MIXI 無直接關聯。  
-* 部分程式碼與邏輯由 AI 協助生成與優化。
+`script.js` 依區塊整理：設定與常數 → 工具函式 → DOM 與狀態 → 存檔 → 初始化與登入 → Modal → 資料計算 → 果實轉移 → 渲染 → 事件綁定。
+
+- **新增資料欄位**：把欄位名稱加進 `DATA_FIELDS` 與 `createDefaultState()`，本地存檔、雲端同步、備份匯出入、重置、切換存檔都會自動處理。
+- **資料有變動**：呼叫 `commit()`（= 存檔 + 重新渲染）。
+- **可調整的設定**（位於檔案開頭）：`BANK_SLOTS`（鳥籠數）、`FRUITS_PER_CHAR`（每角色果實數）、`PRESETS`（快速組合）、`ATTACK_CATEGORIES`（總覽左側分類）。
+- **雲端資料路徑**：`artifacts/{appId}/users/{uid}/fruit_data/{文件}`，預設存檔的文件為 `fruit_assign`，其他存檔為 `fruit_assign_<存檔ID>`；`appId` 未提供時為 `default-app-id`。
+- **LocalStorage**：預設存檔直接使用欄位名稱當 key，其他存檔為 `<存檔ID>_<欄位名稱>`。
+- **已知限制**：存檔列表與存檔名稱快取存放在各自瀏覽器的 LocalStorage，不會跨裝置同步；換裝置時只會看到預設的 4 個存檔。
+
+---
+
+## 🛠 技術堆疊
+
+- **Frontend**：HTML5、CSS3（Flexbox / Grid / 媒體查詢）、Vanilla JavaScript (ES6+)
+- **Backend (BaaS)**：Google Firebase（Authentication、Firestore）
+- **Storage**：LocalStorage（離線備援）、sessionStorage（登入後快取）
+- **Fonts**：Google Fonts (Noto Sans TC)
+
+---
+
+## 📝 授權與備註
+
+- 本專案為非官方粉絲製作工具，與 MIXI 無直接關聯。
+- 部分程式碼與文件由 AI 協助生成與優化。
