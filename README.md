@@ -39,10 +39,12 @@
 
 ### 👥 角色與果實分配
 - **主力角色清單**：新增、搜尋、重新命名、刪除角色（更名時分配與已獲得狀態會一併轉移，並防止重複名稱）。
-- **🎰 從抽卡統計匯入**：把[抽卡統計](https://emily4027.github.io/monster-strike-gacha/)紀錄裡抽到的角色直接加進來（登入時讀雲端紀錄，未登入時讀這台電腦的紀錄，只讀不改）。選擇抽卡帳號後，每隻角色可選「新增到主力 / 新增到倉庫 / 對應到已有角色 / 不需要 / 先不處理」：
+- **🎰 從抽卡統計匯入**：把[抽卡統計](https://emily4027.github.io/monster-strike-gacha/)紀錄裡抽到的角色直接加進來（登入時讀雲端紀錄，未登入時讀這台電腦的紀錄）。選擇抽卡帳號後，每隻角色可選「新增到主力 / 新增到倉庫 / 對應到已有角色 / 不需要 / 先不處理」：
   - 抽到多隻同名角色時，第二隻起自動編號為「虹夏-2」「虹夏-3」……（主力與倉庫一起算）。
   - 已經手動新增過的同名角色會預設「對應」，不會重複新增；名稱不同的也可以手動選擇對應。
+  - 對應到名字不同的角色（例如錯字）時，可以選擇統一用哪個名字：改果實分配的角色名稱，或改抽卡統計的紀錄（登入時才會改抽卡統計，所有帳號寫成同一個名字的紀錄會一起改）。
   - 「已匯入」分頁可取消對應（角色不會被刪除），「🗑️ 垃圾桶」分頁可找回選了「不需要」的角色。
+  - 匯入後才在抽卡統計改角色名字也沒關係，會自動接回原本的匯入狀態。
 - **快速輸入**：主力角色、倉庫角色、果實名稱的輸入框按 Enter 即可新增（使用注音等輸入法選字時的 Enter 不會觸發）。
 - **分配表**：每位角色 4 個果實欄位，每顆果實有獨立勾選框，勾選代表「已獲得」；全部完成的角色整列以綠色標示。
 - **搜尋與排序**：可搜尋角色名稱或果實，可選「僅顯示搜尋結果」「隱藏已完成分配」，並依「未完成分配數量」由少到多或由多到少排序；標題旁顯示待辦角色數。
@@ -118,7 +120,7 @@ python -m http.server 8000     # 然後開啟 http://localhost:8000
 - **LocalStorage**：預設存檔直接使用欄位名稱當 key，其他存檔為 `<存檔ID>_<欄位名稱>`；這台電腦（離線）的存檔清單與名稱為 `global_slot_list`、`slot_names_cache`，登入時不會被雲端清單覆蓋。
 - **sessionStorage 快取**：雲端資料依「帳號 + 存檔」分開快取（`fruit_data_cache_<uid>_<存檔ID>`），雲端存檔清單快取為 `fruit_slot_list_cache_<uid>`，登出時會清除；雲端載入期間不會寫入雲端，以雲端資料為準。
 - **雲端版本檢查**：雲端文件都有 `version`（每次寫入 + 1）與 `lastUpdated`。寫入都在 `runTransaction` 中先比對兩者是否和上次讀到 / 寫入的相同（`slotDocBase`、`slotListBase`），不同就代表其他裝置改過：存檔資料走 `handleSaveConflict()`（下載備份 + 重新載入），存檔清單走 `mergeSlotLists()`（三方合併）。新增寫入雲端的地方請沿用 `writeToCloud()` / `writeSlotListToCloud()`，不要直接 `setDoc`。
-- **從抽卡統計匯入**：讀取抽卡統計的雲端文件 `artifacts/{appId}/users/{uid}/data/gacha_records`（`records` 陣列）或 localStorage `gachaRecords`，使用欄位 `id`、`account`、`date`、`event`、`notes`（「虹夏*3、麒麟兒」格式）、`tag`（`orb` 略過）；設定在檔案開頭的 `GACHA_*` 常數。**抽卡統計改了這些路徑或欄位時，這邊要一起改。** 匯入狀態存在存檔欄位 `gachaImports`（`[{ rid, name, linked: [{ n, t }], trashed }]`）與 `gachaAccount`。
+- **從抽卡統計匯入**：讀取抽卡統計的雲端文件 `artifacts/{appId}/users/{uid}/data/gacha_records`（`records` 陣列）或 localStorage `gachaRecords`，使用欄位 `id`、`account`、`date`、`event`、`notes`（「虹夏*3、麒麟兒」格式）、`tag`（`orb` 略過）；設定在檔案開頭的 `GACHA_*` 常數。**抽卡統計改了這些路徑或欄位時，這邊要一起改。** 統一名字時會改寫抽卡統計雲端紀錄的 `notes`（`renameInGachaCloud()`：transaction 讀最新資料、只替換該角色名稱、`version` + 1、`merge: true`），抽卡統計存檔時的三方合併會接收這個修改。 匯入狀態存在存檔欄位 `gachaImports`（`[{ rid, name, linked: [{ n, t }], trashed }]`）與 `gachaAccount`。
 - **存檔清單的來源**：`slotList` 登入時是雲端清單，未登入時是本機清單；新增、刪除、改名都透過 `persistSlotList()` 寫回對應的地方。
 
 ---

@@ -993,6 +993,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 多選一視窗：choices = [{ value, label, cls }]，按 × 或視窗外面時回傳 null
+    function customChoice(message, title, choices) {
+        $('choiceTitle').textContent = title;
+        $('choiceMessage').textContent = message;
+        const box = $('choiceButtons');
+        box.innerHTML = '';
+        const modal = $('choiceModal');
+        toggleModal(modal, true);
+
+        return new Promise((resolve) => {
+            const finish = (value) => {
+                toggleModal(modal, false);
+                modal.onclick = null;
+                resolve(value);
+            };
+            choices.forEach(({ value, label, cls }) => {
+                const btn = document.createElement('button');
+                btn.className = `btn ${cls || 'btn-blue'}`;
+                btn.textContent = label;
+                btn.onclick = () => finish(value);
+                box.appendChild(btn);
+            });
+            modal.querySelector('.close-modal').onclick = () => finish(null);
+            modal.onclick = (e) => { if (e.target === modal) finish(null); };
+        });
+    }
+
     function customInput(message, defaultValue = '') {
         $('inputTitle').textContent = '輸入';
         $('inputMessage').textContent = message;
@@ -1517,7 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 linked.forEach((link) => imported.push({ record, rid, name, link }));
                 for (let i = 0; i < trashCount; i++) trashed.push({ record, rid, name });
                 const left = Math.max(0, count - linked.length - trashCount);
-                for (let i = 0; i < left; i++) pending.push({ record, rid, name, action: '', newName: '' });
+                for (let i = 0; i < left; i++) pending.push({ record, rid, name, action: '', newName: '', rename: null });
             });
         });
         gachaImport.pending = pending;
@@ -1532,6 +1559,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const claimed = new Set();
         gachaImport.pending.forEach((row) => {
             row.action = 'add:main';
+            row.rename = null;
             for (let k = 1; k < 100; k++) {
                 const n = numberedName(row.name, k);
                 const type = ['main', 'storage'].find((t) => charList(t).includes(n) && !linked.has(linkKey(t, n)) && !claimed.has(linkKey(t, n)));
@@ -1546,14 +1574,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 「新增」的角色依序取名：虹夏、虹夏-2、虹夏-3…… (主力和倉庫的名字一起算)
-    function assignGachaNewNames() {
+    //   preview：選了「改抽卡統計的名字」時，同名的其他列先用改好的名字預覽
+    function assignGachaNewNames(preview = true) {
         const used = new Set([...state.characters, ...state.storageCharacters]);
+        const renames = new Map();
+        if (preview) {
+            gachaImport.pending.forEach((row) => {
+                if (row.rename === 'fruit' && !renames.has(row.name)) renames.set(row.name, baseNameOf(parseLinkAction(row.action).n));
+            });
+        }
         gachaImport.pending.forEach((row) => {
             row.newName = '';
             if (!row.action.startsWith('add:')) return;
+            const base = renames.get(row.name) || row.name;
             let k = 1;
-            while (used.has(numberedName(row.name, k))) k++;
-            row.newName = numberedName(row.name, k);
+            while (used.has(numberedName(base, k))) k++;
+            row.newName = numberedName(base, k);
             used.add(row.newName);
         });
     }
@@ -1568,11 +1604,102 @@ document.addEventListener('DOMContentLoaded', () => {
             return `→ 新增到${where}「${row.newName}」${note}`;
         }
         if (row.action.startsWith('link:')) {
-            const [t, ...rest] = row.action.slice(5).split('|');
-            return `→ 對應到${t === 'storage' ? '倉庫' : ''}「${rest.join('|')}」`;
+            const { t, n } = parseLinkAction(row.action);
+            const base = `→ 對應到${t === 'storage' ? '倉庫' : ''}「${n}」`;
+            if (row.rename === 'gacha') return `${base}，並改名為「${renamedTarget(n, row.name, t)}」`;
+            if (row.rename === 'fruit') return `${base}，並把抽卡統計的「${row.name}」改成「${baseNameOf(n)}」`;
+            return base;
         }
         if (row.action === 'trash') return '→ 移到垃圾桶';
         return '';
+    }
+
+    const parseLinkAction = (action) => {
+        const [t, ...rest] = action.slice(5).split('|');
+        return { t, n: rest.join('|') };
+    };
+
+    // 對應時兩邊名字不同 (不看編號)：要選用哪個名字
+    const namesDiffer = (row) => row.action.startsWith('link:') && baseNameOf(parseLinkAction(row.action).n) !== row.name;
+
+    // 果實分配的角色改用抽卡統計的名字：保留編號 (羌廆-2 → 羌瘣-2)，撞名時接下一個編號
+    function renamedTarget(target, gachaName, type) {
+        const suffix = target.match(/-(\d+)$/);
+        let k = suffix && baseNameOf(target) !== target ? parseInt(suffix[1], 10) : 1;
+        const taken = (n) => n !== target && (state.characters.includes(n) || state.storageCharacters.includes(n));
+        while (taken(numberedName(gachaName, k))) k++;
+        return numberedName(gachaName, k);
+    }
+
+    // 把「獲得角色」文字裡的某個角色名稱換掉，其他角色和寫法 (數量、分隔符號) 不動
+    function replaceGachaName(notes, oldName, newName) {
+        return String(notes).split(/([,，、\s+]+)/).map((part, i) => {
+            if (i % 2 === 1 || !part || GACHA_NOT_CHARACTER.test(part)) return part;
+            const m = part.match(/^(.+?)((?:[ *xX×]+\d+[隻體]?|\d+[隻體])?)$/);
+            if (!m) return part;
+            const lead = !m[2] && m[1].match(/^(\d+)(\D{2,}.*)$/);
+            const prefix = lead ? lead[1] : '';
+            const name = lead ? lead[2] : m[1];
+            return name.trim() === oldName ? `${prefix}${newName}${m[2]}` : part;
+        }).join('');
+    }
+
+    const gachaCloudRef = () => {
+        const { doc } = window.firebaseModules;
+        return doc(db, 'artifacts', envAppId, 'users', currentUser.uid, ...GACHA_CLOUD_DOC);
+    };
+
+    // 改寫抽卡統計的雲端紀錄：所有帳號中寫成 oldName 的角色都改成 newName。
+    // 用 transaction 讀最新資料再改，version + 1，抽卡統計下次存檔時會以三方合併接收這次修改。
+    async function renameInGachaCloud(oldName, newName) {
+        const { runTransaction } = window.firebaseModules;
+        const ref = gachaCloudRef();
+        return runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists() || !Array.isArray(snap.data().records)) return 0;
+            let changed = 0;
+            const records = snap.data().records.map((r) => {
+                if (!r || typeof r.notes !== 'string') return r;
+                const notes = replaceGachaName(r.notes, oldName, newName);
+                if (notes === r.notes) return r;
+                changed++;
+                return { ...r, notes };
+            });
+            if (changed > 0) tx.set(ref, { records, version: nextVersion(snap), lastUpdated: new Date() }, { merge: true });
+            return changed;
+        });
+    }
+
+    // 抽卡統計的名字改了之後，匯入狀態也跟著改 (同一筆紀錄已有新名字的狀態時合併)
+    function renameGachaEntries(oldName, newName, rids = null) {
+        state.gachaImports.slice().forEach((entry) => {
+            if (entry.name !== oldName || (rids && !rids.has(entry.rid))) return;
+            const existing = findGachaEntry(entry.rid, newName);
+            if (existing && existing !== entry) {
+                existing.linked.push(...entry.linked);
+                existing.trashed += entry.trashed;
+                state.gachaImports.splice(state.gachaImports.indexOf(entry), 1);
+            } else {
+                entry.name = newName;
+            }
+        });
+    }
+
+    // 直接在抽卡統計改了名字：同一筆紀錄中「已處理的名字不見了、又多了一個沒處理的名字」，
+    // 而且剛好只有一對時，把匯入狀態接到新名字上 (兩對以上猜不出對應，就不處理)
+    function recoverRenamedGachaEntries() {
+        let recovered = 0;
+        gachaImport.records.forEach((record) => {
+            const rid = String(record.id);
+            const names = parseGachaCharacters(record.notes).map((c) => c.name);
+            const orphans = state.gachaImports.filter((e) => e.rid === rid && !names.includes(e.name) && (e.linked.length || e.trashed));
+            const fresh = names.filter((n) => !findGachaEntry(rid, n));
+            if (orphans.length === 1 && fresh.length === 1) {
+                orphans[0].name = fresh[0];
+                recovered++;
+            }
+        });
+        return recovered;
     }
 
     function gachaActionOptionsHtml(row, linked) {
@@ -1677,7 +1804,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { records, source } = await loadGachaRecords();
             gachaImport.records = records;
-            DOM.gachaImportSource.textContent = `資料來源：${source}`;
+            const recovered = recoverRenamedGachaEntries();
+            if (recovered > 0) saveData();
+            DOM.gachaImportSource.textContent = `資料來源：${source}`
+                + (recovered > 0 ? `（${recovered} 隻在抽卡統計改過名字的角色已自動接回）` : '');
         } catch (e) {
             console.error('[GACHA] 讀取抽卡紀錄失敗', e);
             DOM.gachaImportSource.textContent = '讀取抽卡紀錄失敗，請檢查網路後再試一次。';
@@ -1688,7 +1818,39 @@ document.addEventListener('DOMContentLoaded', () => {
         renderGachaImport();
     }
 
-    function performGachaImport() {
+    // 對應時選了「用果實分配的名字」：先改抽卡統計 (只在登入時改雲端；未登入時請使用者自己改)
+    async function applyGachaRenames(rows) {
+        const wanted = new Map();
+        rows.filter((row) => row.rename === 'fruit').forEach((row) => {
+            if (!wanted.has(row.name)) wanted.set(row.name, baseNameOf(parseLinkAction(row.action).n));
+        });
+        const renamed = new Map();
+        const manual = [];
+        const failed = [];
+        const loggedIn = isCloudMode && currentUser && db;
+
+        for (const [oldName, newName] of wanted) {
+            if (!loggedIn) {
+                manual.push(`「${oldName}」→「${newName}」`);
+                continue;
+            }
+            const count = gachaImport.records.filter((r) => parseGachaCharacters(r.notes).some((c) => c.name === oldName)).length;
+            const ok = await customConfirm(`抽卡統計有 ${count} 筆紀錄（所有帳號）寫成「${oldName}」，要全部改成「${newName}」嗎？\n（按取消的話，只對應、不改名字）`, '修改抽卡統計');
+            if (!ok) continue;
+            try {
+                await renameInGachaCloud(oldName, newName);
+                renamed.set(oldName, newName);
+                gachaImport.records.forEach((r) => { r.notes = replaceGachaName(r.notes, oldName, newName); });
+                renameGachaEntries(oldName, newName);
+            } catch (e) {
+                console.error('[GACHA] 修改抽卡統計失敗', e);
+                failed.push(oldName);
+            }
+        }
+        return { renamed, manual, failed };
+    }
+
+    async function performGachaImport() {
         const rows = gachaImport.pending.filter((row) => row.action && row.action !== 'skip');
         if (rows.length === 0) return customAlert('沒有要處理的角色（都設為「先不處理」）。');
 
@@ -1697,8 +1859,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const dup = targets.find((t, i) => targets.indexOf(t) !== i);
         if (dup) return customAlert(`「${dup.split('|').slice(1).join('|')}」被選了兩次對應，同一個角色只能對應一隻。`);
 
-        const done = { add: 0, link: 0, trash: 0 };
-        rows.forEach((row) => {
+        DOM.confirmGachaImportBtn.disabled = true;
+        let gachaResult;
+        try {
+            gachaResult = await applyGachaRenames(rows);
+        } finally {
+            DOM.confirmGachaImportBtn.disabled = false;
+        }
+
+        // 抽卡統計改了名字：同名的其他列 (例如第二隻要新增的) 也改用新名字取名
+        // 沒改成的 (按取消或失敗) 照原本的名字取名
+        gachaImport.pending.forEach((row) => {
+            if (gachaResult.renamed.has(row.name)) row.name = gachaResult.renamed.get(row.name);
+        });
+        assignGachaNewNames(false);
+
+        const done = { add: 0, link: 0, trash: 0, renamed: [] };
+        const applyRow = (row) => {
             const entry = ensureGachaEntry(row.rid, row.name);
             if (row.action.startsWith('add:')) {
                 const t = row.action === 'add:storage' ? 'storage' : 'main';
@@ -1707,20 +1884,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 entry.linked.push({ n: row.newName, t });
                 done.add++;
             } else if (row.action.startsWith('link:')) {
-                const [t, ...rest] = row.action.slice(5).split('|');
-                entry.linked.push({ n: rest.join('|'), t });
+                const { t, n } = parseLinkAction(row.action);
+                let target = n;
+                if (row.rename === 'gacha') {
+                    // 果實分配的角色改用抽卡統計的名字
+                    const newName = renamedTarget(n, row.name, t);
+                    if (!renameCharacterData(n, newName, t)) {
+                        done.renamed.push(`「${n}」→「${newName}」`);
+                        target = newName;
+                    }
+                }
+                entry.linked.push({ n: target, t });
                 done.link++;
             } else if (row.action === 'trash') {
                 entry.trashed++;
                 done.trash++;
             }
-        });
+        };
+        // 先處理不改名的，改名的最後做 (改名時才看得到新增的名字，避免撞名)
+        rows.filter((row) => row.rename !== 'gacha').forEach(applyRow);
+        rows.filter((row) => row.rename === 'gacha').forEach(applyRow);
 
         state.gachaAccount = gachaImport.account;
         commit();
         buildGachaRows();
         renderGachaImport();
-        customAlert(`已新增 ${done.add} 位、對應 ${done.link} 位、移到垃圾桶 ${done.trash} 位。`, '匯入完成');
+
+        const lines = [`已新增 ${done.add} 位、對應 ${done.link} 位、移到垃圾桶 ${done.trash} 位。`];
+        if (done.renamed.length) lines.push(`果實分配已改名：${done.renamed.join('、')}`);
+        if (gachaResult.renamed.size) lines.push(`抽卡統計已改名：${[...gachaResult.renamed].map(([a, b]) => `「${a}」→「${b}」`).join('、')}`);
+        if (gachaResult.manual.length) lines.push(`目前沒有登入，抽卡統計沒有改名，請到抽卡統計手動修改：${gachaResult.manual.join('、')}`);
+        if (gachaResult.failed.length) lines.push(`抽卡統計改名失敗（請檢查網路後再試一次）：${gachaResult.failed.map((n) => `「${n}」`).join('、')}`);
+        customAlert(lines.join('\n'), '匯入完成');
     }
 
     function bindGachaImportEvents() {
@@ -1741,9 +1936,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 改動作時只更新結果文字 (新增的編號會跟著其他列的選擇變動)
-        DOM.gachaImportList.onchange = (e) => {
+        DOM.gachaImportList.onchange = async (e) => {
             if (!e.target.classList.contains('gi-action')) return;
-            gachaImport.pending[Number(e.target.dataset.index)].action = e.target.value;
+            const row = gachaImport.pending[Number(e.target.dataset.index)];
+            const previous = row.action;
+            const previousRename = row.rename;
+            row.action = e.target.value;
+            row.rename = null;
+
+            // 對應到名字不同的角色：選用哪個名字 (按 × 則取消這次選擇)
+            if (namesDiffer(row)) {
+                const { n } = parseLinkAction(row.action);
+                const fruitBase = baseNameOf(n);
+                const choice = await customChoice(
+                    `抽卡統計寫的是「${row.name}」，果實分配是「${n}」。要統一成哪個名字？`,
+                    '選擇名字',
+                    [
+                        { value: 'gacha', label: `用「${row.name}」（改果實分配）`, cls: 'btn-blue' },
+                        { value: 'fruit', label: `用「${fruitBase}」（改抽卡統計）`, cls: 'btn-blue' },
+                        { value: 'none', label: '兩邊都不改', cls: 'btn-gray' }
+                    ]
+                );
+                if (choice === null) {
+                    row.action = previous;
+                    row.rename = previousRename;
+                    e.target.value = previous;
+                } else {
+                    row.rename = choice === 'none' ? null : choice;
+                }
+            }
             assignGachaNewNames();
             gachaImport.pending.forEach((row, i) => {
                 const el = DOM.gachaImportList.querySelector(`[data-result="${i}"]`);
@@ -2192,11 +2413,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (searchFiltered.length === 1) DOM.presetCharacterSelect.value = searchFiltered[0];
     }
 
-    async function renameCharacter(oldName, type) {
-        const newName = await customInput(`請輸入「${oldName}」的新名稱：`, oldName);
-        if (!newName || newName === oldName) return;
-
-        // 同步更名：清單 + 對應資料表
+    // 角色改名 (清單 + 分配 / 已獲得 / 倉庫果實 + 抽卡對應)；名稱已存在時回傳錯誤訊息
+    function renameCharacterData(oldName, newName, type) {
         const renameKey = (obj) => {
             if (obj[oldName]) {
                 obj[newName] = obj[oldName];
@@ -2205,21 +2423,27 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         if (type === 'main') {
-            if (state.characters.includes(newName)) return customAlert('此角色名稱已存在！');
-
+            if (state.characters.includes(newName)) return '此角色名稱已存在！';
             const idx = state.characters.indexOf(oldName);
             if (idx !== -1) state.characters[idx] = newName;
             renameKey(state.fruitAssignments);
             renameKey(state.fruitObtained);
-
         } else if (type === 'storage') {
-            if (state.storageCharacters.includes(newName)) return customAlert('此倉庫角色名稱已存在！');
-
+            if (state.storageCharacters.includes(newName)) return '此倉庫角色名稱已存在！';
             const idx = state.storageCharacters.indexOf(oldName);
             if (idx !== -1) state.storageCharacters[idx] = newName;
             renameKey(state.storageAssignments);
         }
         renameGachaLinks(oldName, newName, type);
+        return '';
+    }
+
+    async function renameCharacter(oldName, type) {
+        const newName = await customInput(`請輸入「${oldName}」的新名稱：`, oldName);
+        if (!newName || newName === oldName) return;
+
+        const error = renameCharacterData(oldName, newName, type);
+        if (error) return customAlert(error);
 
         commit();
         customAlert(`已將「${oldName}」更名為「${newName}」。`);

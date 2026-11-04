@@ -648,3 +648,4 @@ tr.row-completed td:first-child {
 .gi-row .btn-small { margin-left: auto; }
 .gi-empty { color: #888; text-align: center; padding: 20px 0; }
 .btn-small { padding: 4px 10px; font-size: 12px; }
+.choice-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
