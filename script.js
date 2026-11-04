@@ -333,14 +333,94 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 雲端資料快取 (每個存檔槽位分開存，避免重新整理後套用到別的存檔)
     const getDataCacheKey = (uid, slot = currentSlot) => `${DATA_CACHE_PREFIX}${uid}_${slot}`;
-    const cacheCloudData = (uid, data) => sessionStorage.setItem(getDataCacheKey(uid), JSON.stringify(data));
+    const cacheCloudData = (uid, data, slot = currentSlot) => sessionStorage.setItem(getDataCacheKey(uid, slot), JSON.stringify(data));
 
-    // 完整覆寫雲端文件 (不使用 merge，避免已刪除 / 改名的舊資料殘留在雲端)
+    // ---- 雲端版本檢查 (兩台裝置同時開著時，避免互相覆蓋) ----
+    //   每次寫入時 version + 1。寫入前在 transaction 裡比對雲端的 version 與 lastUpdated
+    //   是否和上次讀到 / 寫入的一樣，只要有一個不同就當作其他裝置改過。
+    //   (舊版網頁寫入時不會更新 version，所以 lastUpdated 也要比；大家都換成新版後可拿掉)
+    const CONFLICT_PREFIX = '雲端資料已被其他裝置更新，';
+    const stampOf = (value) => {
+        if (!value) return null;
+        if (typeof value.toMillis === 'function') return value.toMillis();
+        const ms = new Date(value).getTime();
+        return Number.isNaN(ms) ? null : ms;
+    };
+    const versionOf = (data) => (data
+        ? { exists: true, version: Number.isInteger(data.version) ? data.version : null, stamp: stampOf(data.lastUpdated) }
+        : { exists: false });
+    const snapVersion = (snap) => versionOf(snap.exists() ? snap.data() : null);
+    const isSameVersion = (a, b) => a.exists === b.exists && (!a.exists || (a.version === b.version && a.stamp === b.stamp));
+    const nextVersion = (snap) => (snap.exists() && Number.isInteger(snap.data().version) ? snap.data().version : 0) + 1;
+
+    // 目前存檔在雲端「上次讀到 / 寫入」的版本 (data 為 null 代表雲端沒有這份文件)
+    let slotDocBase = { slot: null, exists: false };
+    const rememberSlotDoc = (slot, data) => { slotDocBase = { slot, ...versionOf(data) }; };
+
+    // 寫入雲端前先比對版本；雲端被其他裝置改過時不寫入，回傳 conflict
+    // (完整覆寫雲端文件，不使用 merge，避免已刪除 / 改名的舊資料殘留在雲端)
     async function writeToCloud() {
-        const { setDoc } = window.firebaseModules;
-        const dataToSave = { ...pickData(), lastUpdated: new Date() };
-        cacheCloudData(currentUser.uid, dataToSave);
-        await setDoc(getCloudDocRef(currentUser.uid), dataToSave);
+        const { runTransaction } = window.firebaseModules;
+        const uid = currentUser.uid;
+        const slot = currentSlot;
+        const ref = getCloudDocRef(uid, slot);
+        const base = slotDocBase.slot === slot ? slotDocBase : { exists: false };
+        const mine = pickData();
+
+        const result = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!isSameVersion(snapVersion(snap), base)) {
+                return { conflict: true, cloudData: snap.exists() ? snap.data() : null };
+            }
+            const dataToSave = { ...mine, version: nextVersion(snap), lastUpdated: new Date() };
+            tx.set(ref, dataToSave);
+            return { conflict: false, dataToSave };
+        });
+
+        if (result.conflict) return { conflict: true, slot, cloudData: result.cloudData, mine };
+        rememberSlotDoc(slot, result.dataToSave);
+        cacheCloudData(uid, result.dataToSave, slot);
+        return { conflict: false };
+    }
+
+    function downloadJson(data, fileName) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    const dateStamp = (withTime = false) => {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+        return withTime ? `${date}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}` : date;
+    };
+
+    // 存檔衝突：先把這台剛才的版本下載成備份，再重新載入雲端的最新資料
+    function handleSaveConflict({ slot, cloudData, mine }, { backup = true, message } = {}) {
+        clearTimeout(saveTimeout);
+        const isCurrent = slot === currentSlot;
+        if (backup) {
+            const myData = isCurrent ? pickData() : mine;   // 包含存檔送出後才做的修改
+            downloadJson(myData, `${myData.recordName || '果實分配'}_衝突備份_${dateStamp(true)}.json`);
+        }
+
+        rememberSlotDoc(slot, cloudData);
+        if (cloudData) cacheCloudData(currentUser.uid, cloudData, slot);
+        else sessionStorage.removeItem(getDataCacheKey(currentUser.uid, slot));
+
+        if (isCurrent) {
+            if (cloudData) applyData(cloudData);
+            else state = createDefaultState();   // 這個存檔已在其他裝置刪除或初始化
+            renderAll();
+        }
+        updateCloudStatus('online', `已載入其他裝置的最新資料 (${getSelectedSlotText()})`);
+        customAlert(message || (backup
+            ? `${CONFLICT_PREFIX}已重新載入最新資料，你剛才的修改已下載備份，請重新操作。`
+            : `${CONFLICT_PREFIX}已重新載入最新資料。`), '雲端資料已更新');
     }
 
     // 統一儲存 (雲端模式使用 Debounce；isImmediate 用於切換存檔等需要等待完成的情況)
@@ -353,8 +433,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const performSave = async () => {
                 try {
                     updateCloudStatus('saving', `儲存中 (${getSelectedSlotText(currentSlot)})...`);
-                    await writeToCloud();
-                    updateCloudStatus('online', `已同步至雲端 (${getSelectedSlotText()})`);
+                    const result = await writeToCloud();
+                    if (result.conflict) handleSaveConflict(result);
+                    else updateCloudStatus('online', `已同步至雲端 (${getSelectedSlotText()})`);
                 } catch (e) {
                     console.error('[CLOUD] 雲端儲存失敗', e);
                     updateCloudStatus('offline', '儲存失敗');
@@ -430,11 +511,65 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSlot = (lastSlot && slotList.includes(lastSlot)) ? lastSlot : 'default';
     }
 
+    // 雲端存檔清單「上次讀到 / 寫入」的內容與版本，用來判斷其他裝置改了什麼
+    let slotListBase = { exists: false, ids: [], names: {} };
+
+    function parseSlotListDoc(data) {
+        const slots = data && Array.isArray(data.slots) ? data.slots.filter((s) => s && typeof s.id === 'string') : [];
+        const names = {};
+        slots.forEach((s) => { if (s.name) names[s.id] = s.name; });
+        return { ...versionOf(data), ids: slots.map((s) => s.id), names };
+    }
+
+    // 三方合併：以雲端最新清單為底，套上這台相對於 base 做的新增、刪除、改名
+    // (兩邊各自新增 / 刪除的存檔都會保留；同一個存檔兩邊都改名時，以正在存檔的這台為準)
+    function mergeSlotLists(base, mine, cloud) {
+        const removedHere = new Set(base.ids.filter((id) => !mine.ids.includes(id)));
+        const ids = cloud.ids.filter((id) => !removedHere.has(id));
+        mine.ids.forEach((id) => { if (!base.ids.includes(id) && !ids.includes(id)) ids.push(id); });
+        // 正在使用的存檔被其他裝置刪除時先保留在清單中，避免選單上找不到目前的存檔
+        if (mine.ids.includes(currentSlot) && !ids.includes(currentSlot)) ids.push(currentSlot);
+        if (!ids.includes('default')) ids.unshift('default');
+
+        const names = {};
+        ids.forEach((id) => {
+            const renamedHere = mine.ids.includes(id) && (mine.names[id] || '') !== (base.names[id] || '');
+            const name = renamedHere || !cloud.ids.includes(id) ? mine.names[id] : cloud.names[id];
+            if (name) names[id] = name;
+        });
+        return { ids, names };
+    }
+
+    const sameSlotList = (a, b) => JSON.stringify(a.ids) === JSON.stringify(b.ids) && JSON.stringify(a.names) === JSON.stringify(b.names);
+
     async function writeSlotListToCloud() {
-        const { setDoc } = window.firebaseModules;
-        const slots = slotList.map((id) => ({ id, name: cloudSlotNames[id] || '' }));
+        const { runTransaction } = window.firebaseModules;
+        const ref = getSlotListDocRef(currentUser.uid);
+        const base = slotListBase;
+        const mine = { ids: [...slotList], names: { ...cloudSlotNames } };
         cacheCloudSlotList();
-        await setDoc(getSlotListDocRef(currentUser.uid), { slots, lastUpdated: new Date() });
+
+        const result = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            const cloud = parseSlotListDoc(snap.exists() ? snap.data() : null);
+            // 雲端沒被其他裝置改過 (或清單已不存在) 就直接寫入這台的清單，否則合併
+            const merged = !cloud.exists || isSameVersion(cloud, base) ? mine : mergeSlotLists(base, mine, cloud);
+            const version = nextVersion(snap);
+            const lastUpdated = new Date();
+            tx.set(ref, { slots: merged.ids.map((id) => ({ id, name: merged.names[id] || '' })), version, lastUpdated });
+            return { merged, version, stamp: lastUpdated.getTime() };
+        });
+
+        const { merged } = result;
+        slotListBase = { exists: true, version: result.version, stamp: result.stamp, ...merged };
+        if (sameSlotList(merged, mine)) return;
+
+        // 合併進了其他裝置的修改：更新畫面上的清單
+        slotList = [...merged.ids];
+        cloudSlotNames = { ...merged.names };
+        cacheCloudSlotList();
+        renderSlotOptions();
+        customAlert(`${CONFLICT_PREFIX}已自動合併兩邊的存檔清單修改。`, '雲端資料已更新');
     }
 
     // 存檔清單有變動時呼叫：雲端清單寫回雲端，本機清單寫入 localStorage
@@ -463,6 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cloudSlots = snap.exists() && Array.isArray(snap.data().slots)
             ? snap.data().slots.filter((s) => s && typeof s.id === 'string')
             : null;
+        slotListBase = parseSlotListDoc(snap.exists() ? snap.data() : null);
 
         if (!cloudSlots) {
             const ids = readLocalSlotList();
@@ -492,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!localStorage.getItem(localKeyFor(id, 'characters'))) continue;
             const ref = getCloudDocRef(uid, id);
             if ((await getDoc(ref)).exists()) continue;
-            await setDoc(ref, { ...readLocalSlotData(id), lastUpdated: new Date() });
+            await setDoc(ref, { ...readLocalSlotData(id), version: 1, lastUpdated: new Date() });
         }
     }
 
@@ -512,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { setDoc } = window.firebaseModules;
             for (const id of pending) {
-                await setDoc(getCloudDocRef(uid, id), { ...readLocalSlotData(id), lastUpdated: new Date() });
+                await setDoc(getCloudDocRef(uid, id), { ...readLocalSlotData(id), version: 1, lastUpdated: new Date() });
                 slotList.push(id);
                 cloudSlotNames[id] = labelOf(id);
             }
@@ -544,6 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { getDoc } = window.firebaseModules;
                 const docSnap = await getDoc(getCloudDocRef(currentUser.uid));
                 isCloudLoading = false;
+                rememberSlotDoc(newSlot, docSnap.exists() ? docSnap.data() : null);
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -557,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 isCloudLoading = false;
+                rememberSlotDoc(newSlot, null);   // 版本不明：之後存檔時雲端若已有資料就會當作衝突，重新載入
                 console.error('[CLOUD] 切換讀取失敗', e);
                 loadFromLocalStorage();
                 updateCloudStatus('offline', '切換讀取失敗，使用本地');
@@ -694,6 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { getDoc } = window.firebaseModules;
             const docSnap = await getDoc(getCloudDocRef(user.uid));
             isCloudLoading = false;
+            rememberSlotDoc(currentSlot, docSnap.exists() ? docSnap.data() : null);
 
             if (docSnap.exists()) {
                 // 以雲端資料為準 (載入期間的編輯會被雲端資料取代)
@@ -807,9 +946,16 @@ document.addEventListener('DOMContentLoaded', () => {
         else modal.classList.remove('show');
     }
 
+    // 提示視窗已開著時 (例如自動合併的通知後緊接著其他提示)，新訊息接在後面，不會蓋掉前一則
     function customAlert(message, title = '提示') {
+        const msgEl = $('alertMessage');
+        msgEl.style.whiteSpace = 'pre-line';
+        if (DOM.alertModal.classList.contains('show')) {
+            msgEl.textContent += `\n\n${message}`;
+            return;
+        }
         $('alertTitle').textContent = title;
-        $('alertMessage').textContent = message;
+        msgEl.textContent = message;
         toggleModal(DOM.alertModal, true);
         $('alertOkBtn').onclick = () => toggleModal(DOM.alertModal, false);
     }
@@ -1804,14 +1950,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         $('saveData').onclick = () => {
-            const now = new Date();
-            const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-            const blob = new Blob([JSON.stringify(pickData(), null, 2)], { type: 'application/json' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = state.recordName ? `${state.recordName}_${dateStr}.json` : `果實分配_${dateStr}.json`;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            downloadJson(pickData(), `${state.recordName || '果實分配'}_${dateStamp()}.json`);
         };
     }
 
@@ -1976,7 +2115,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isCloudMode && currentUser && db) {
                 clearTimeout(saveTimeout);   // 取消尚未送出的儲存，避免舊資料在清空後又寫回雲端
                 try {
-                    await writeToCloud();
+                    const result = await writeToCloud();
+                    if (result.conflict) {
+                        // 其他裝置剛改過：不清空雲端，改為載入最新資料讓使用者確認
+                        return handleSaveConflict(result, {
+                            backup: false,
+                            message: `${CONFLICT_PREFIX}已重新載入最新資料，雲端資料沒有被清空。請確認內容後，如仍要初始化請再操作一次。`
+                        });
+                    }
                     updateCloudStatus('online', `雲端資料已清空 (${slotName})`);
                 } catch (e) {
                     console.error('[CLOUD] 清空雲端資料失敗', e);

@@ -374,7 +374,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyAjpfcNC4ZniqIxYzgYwp5Cs_8gbbmflVY",
@@ -395,7 +395,7 @@
         window.firebaseApp = app;
         window.firebaseAuth = auth;
         window.firebaseDb = db;
-        window.firebaseModules = { doc, getDoc, setDoc, deleteDoc, signOut, GoogleAuthProvider, signInWithPopup };
+        window.firebaseModules = { doc, getDoc, setDoc, deleteDoc, runTransaction, signOut, GoogleAuthProvider, signInWithPopup };
         window.envAppId = appId;
 
         window.onAuthStateChanged = onAuthStateChanged;
