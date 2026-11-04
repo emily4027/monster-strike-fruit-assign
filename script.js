@@ -1783,9 +1783,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .join('');
         return opt('add:main', '➕ 新增到主力')
             + opt('add:storage', '➕ 新增到倉庫')
-            + (linkOptions ? `<optgroup label="對應到已有角色">${linkOptions}</optgroup>` : '')
             + opt('trash', '🗑️ 不需要')
-            + opt('skip', '⏸ 先不處理');
+            + opt('skip', '⏸ 先不處理')
+            + (linkOptions ? `<optgroup label="對應到已有角色">${linkOptions}</optgroup>` : '');
     }
 
     // 依紀錄分組 (最新的紀錄在最上面)
