@@ -1554,40 +1554,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 linked.forEach((link) => imported.push({ record, rid, name, link }));
                 for (let i = 0; i < trashCount; i++) trashed.push({ record, rid, name });
                 const left = Math.max(0, count - linked.length - trashCount);
-                for (let i = 0; i < left; i++) pending.push({ record, rid, name, action: '', newName: '', rename: null });
+                for (let i = 0; i < left; i++) pending.push({ record, rid, name, action: 'skip', suggest: '', newName: '', rename: null });
             });
         });
         gachaImport.pending = pending;
         gachaImport.imported = imported;
         gachaImport.trashed = trashed;
-        setDefaultGachaActions();
+        setDefaultGachaActions(null, false);   // 一開始全部「先不處理」，只顯示建議
     }
 
     // 預設動作：有同名 (或同名編號) 且還沒對應過的角色 → 對應到它；否則新增到主力
     //   onlyRids：只重設這些紀錄的列 (其他列目前選的對應不會被搶走)
-    function setDefaultGachaActions(onlyRids = null) {
+    //   建議記在 row.suggest；apply 為 true 時才實際套用 (一開始全部是「先不處理」，只顯示建議)
+    function setDefaultGachaActions(onlyRids = null, apply = true) {
         const linked = getLinkedSet();
         const claimed = new Set();
-        if (onlyRids) {
-            gachaImport.pending.forEach((row) => {
-                if (!onlyRids.has(row.rid) && row.action.startsWith('link:')) claimed.add(row.action.slice(5));
-            });
-        }
         gachaImport.pending.forEach((row) => {
-            if (onlyRids && !onlyRids.has(row.rid)) return;
-            row.action = 'add:main';
-            row.rename = null;
+            if (onlyRids && !onlyRids.has(row.rid) && row.action.startsWith('link:')) claimed.add(row.action.slice(5));
+        });
+        const suggestFor = (row) => {
             for (let k = 1; k < 100; k++) {
                 const n = numberedName(row.name, k);
                 // 名稱有註記也算同名：「虹夏(同族)」= 「虹夏」
                 for (const t of ['main', 'storage']) {
                     const c = charList(t).find((name) => stripTag(name) === n && !linked.has(linkKey(t, name)) && !claimed.has(linkKey(t, name)));
                     if (c) {
-                        row.action = `link:${linkKey(t, c)}`;
                         claimed.add(linkKey(t, c));
-                        return;
+                        return `link:${linkKey(t, c)}`;
                     }
                 }
+            }
+            return 'add:main';
+        };
+        gachaImport.pending.forEach((row) => {
+            if (onlyRids && !onlyRids.has(row.rid)) return;
+            row.suggest = suggestFor(row);
+            if (apply) {
+                row.action = row.suggest;
+                row.rename = null;
             }
         });
         assignGachaNewNames();
@@ -1639,6 +1643,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return base;
         }
         if (row.action === 'trash') return '→ 移到垃圾桶';
+        // 先不處理：顯示建議的動作 (勾選活動後按「套用建議」即可套用)
+        if (row.action === 'skip' && row.suggest) {
+            if (row.suggest.startsWith('link:')) return `建議：對應到「${parseLinkAction(row.suggest).n}」`;
+            return '建議：新增到主力';
+        }
         return '';
     }
 
@@ -1831,7 +1840,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const bulk = gachaImport.tab === 'pending'
             ? `<div class="gi-bulk"><span class="gi-bulk-label">勾選的活動（${gachaImport.checkedRids.size}）：</span>
-               <button class="btn btn-gray btn-small" id="giResetDefaults">恢復預設</button>
+               <button class="btn btn-gray btn-small" id="giResetDefaults">套用建議</button>
                <button class="btn btn-gray btn-small" id="giSkipAll">先不處理</button>
                <button class="btn btn-gray btn-small" id="giUncheckAll">取消勾選</button></div>`
             : '';
