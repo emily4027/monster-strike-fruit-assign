@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gachaImportModal: $('gachaImportModal'),
         gachaImportSource: $('gachaImportSource'),
         gachaAccountSelect: $('gachaAccountSelect'),
+        gachaShowDate: $('gachaShowDate'),
         gachaImportList: $('gachaImportList'),
         confirmGachaImportBtn: $('confirmGachaImportBtn'),
 
@@ -1601,12 +1602,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 活動名稱本身已有年月 (例如「2026-11月 藍色監獄」) 就不顯示日期；沒有年月時在前面加上日期
+    // 活動標題：勾選「顯示日期」時在活動名稱前加上日期 (設定記在這台電腦)
+    const GACHA_SHOW_DATE_KEY = 'fruit_gacha_show_date';
+    const readShowDate = () => { try { return localStorage.getItem(GACHA_SHOW_DATE_KEY) === '1'; } catch (e) { return false; } };
     const gachaRecordLabel = (record) => {
         const event = String(record.event || '').trim();
         const date = record.date || '';
         if (!event) return date;
-        return /^\d{4}[-年/]\d{1,2}/.test(event) || !date ? event : `${date} ${event}`;
+        return DOM.gachaShowDate.checked && date ? `${date} ${event}` : event;
     };
 
     function gachaActionResult(row) {
@@ -1970,6 +1973,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function bindGachaImportEvents() {
         DOM.gachaImportBtn.onclick = openGachaImport;
         DOM.confirmGachaImportBtn.onclick = performGachaImport;
+
+        DOM.gachaShowDate.checked = readShowDate();
+        DOM.gachaShowDate.onchange = () => {
+            try { localStorage.setItem(GACHA_SHOW_DATE_KEY, DOM.gachaShowDate.checked ? '1' : '0'); } catch (e) { /* 無法保存設定時只影響這次 */ }
+            renderGachaImport();
+        };
 
         DOM.gachaAccountSelect.onchange = () => {
             gachaImport.account = DOM.gachaAccountSelect.value;

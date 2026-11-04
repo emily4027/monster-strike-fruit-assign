@@ -657,3 +657,4 @@ tr.row-completed td:first-child {
 .gi-bulk { align-items: center; flex-wrap: wrap; }
 .gi-bulk-label { font-size: 13px; color: #555; margin-right: auto; }
 label.gi-group-title { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.gi-show-date { display: flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; cursor: pointer; }
