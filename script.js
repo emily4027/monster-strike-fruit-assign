@@ -1601,8 +1601,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 活動名稱本身已有年月 (例如「2026-11月 藍色監獄」)，不再另外顯示日期
-    const gachaRecordLabel = (record) => String(record.event || '').trim() || record.date || '';
+    // 活動名稱本身已有年月 (例如「2026-11月 藍色監獄」) 就不顯示日期；沒有年月時在前面加上日期
+    const gachaRecordLabel = (record) => {
+        const event = String(record.event || '').trim();
+        const date = record.date || '';
+        if (!event) return date;
+        return /^\d{4}[-年/]\d{1,2}/.test(event) || !date ? event : `${date} ${event}`;
+    };
 
     function gachaActionResult(row) {
         if (row.action.startsWith('add:')) {
