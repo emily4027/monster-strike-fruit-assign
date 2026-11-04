@@ -2522,8 +2522,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.onchange = () => {
                     if (!state.fruitAssignments[name]) state.fruitAssignments[name] = [];
                     state.fruitAssignments[name][i] = select.value;
-                    if (!select.value) state.fruitObtained[name][i] = false;
+                    if (!select.value && state.fruitObtained[name]) state.fruitObtained[name][i] = false;
+                    // 分配改完剛好符合某個組合：自動加上 (或換成) 註記
+                    const tag = detectCharacterTag(name);
+                    const { notice } = tag ? tagCharacter(name, tag) : { notice: '' };
                     commit();
+                    if (notice) customAlert(notice);
                 };
                 checkbox.onchange = () => {
                     if (!state.fruitObtained[name]) state.fruitObtained[name] = [];
@@ -2590,6 +2594,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         renameGachaLinks(oldName, newName, type);
         return '';
+    }
+
+    // 主力角色名稱加上 (或換成) 註記；撞名時不改名，回傳提示
+    function tagCharacter(name, tag) {
+        const tagged = `${stripTag(name)}(${tag})`;
+        if (tagged === name) return { name, notice: '' };
+        const error = renameCharacterData(name, tagged, 'main');
+        return error ? { name, notice: `已有「${tagged}」，「${name}」沒有加上註記。` } : { name: tagged, notice: '' };
+    }
+
+    // 依分配判斷註記：
+    //   同族 / 戰型 / 擊種：分配了該類的 2 顆以上 (例如同族加擊 + 同族加擊速 + 速必 → 同族)
+    //   雙削：分配了將消與兵消
+    //   符合兩種以上 (例如同族 2 顆 + 戰型 2 顆) 時判斷不出來，不加註記
+    const TYPE_TAGS = ['同族', '戰型', '擊種'];
+    function detectCharacterTag(name) {
+        const fruits = (state.fruitAssignments[name] || []).filter(Boolean);
+        const inCategory = (fruit, tag) => (state.fruitCategories[tag] || []).includes(fruit) || fruit.startsWith(tag);
+        const matches = TYPE_TAGS.filter((tag) => fruits.filter((f) => inCategory(f, tag)).length >= 2);
+        if (fruits.includes('將消') && fruits.includes('兵消')) matches.push('雙削');
+        return matches.length === 1 ? matches[0] : '';
+    }
+
+    // 依分配幫所有主力角色加註記 (已經是正確註記的不動)
+    async function autoTagAllCharacters() {
+        const changes = state.characters
+            .map((name) => ({ name, tag: detectCharacterTag(name) }))
+            .filter(({ name, tag }) => tag && `${stripTag(name)}(${tag})` !== name);
+        if (changes.length === 0) return customAlert('沒有需要加上註記的角色（已加好或分配不符合任何組合）。');
+
+        const preview = changes.slice(0, 10).map(({ name, tag }) => `${name} → ${stripTag(name)}(${tag})`).join('\n');
+        const more = changes.length > 10 ? `\n……等 ${changes.length} 個` : '';
+        if (!(await customConfirm(`會幫 ${changes.length} 個角色加上註記：\n${preview}${more}`, '依分配自動加註記'))) return;
+
+        const notices = [];
+        let done = 0;
+        changes.forEach(({ name, tag }) => {
+            const { notice } = tagCharacter(name, tag);
+            if (notice) notices.push(notice);
+            else done++;
+        });
+        commit();
+        customAlert([`已幫 ${done} 個角色加上註記。`, ...notices].join('\n'), '完成');
     }
 
     async function renameCharacter(oldName, type) {
@@ -2863,13 +2910,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (missing.length > 0) return customAlert(`果實清單中無此果實：${missing.join(', ')}`);
 
                 // 名稱加上 (或換成) 這個組合的註記：虹夏 → 虹夏(同族)、虹夏(同族) → 虹夏(戰型)
-                const tagged = `${stripTag(char)}(${tag})`;
-                let notice = '';
-                if (tagged !== char) {
-                    const error = renameCharacterData(char, tagged, 'main');
-                    if (error) notice = `已有「${tagged}」，名稱沒有加上註記。`;
-                    else char = tagged;
-                }
+                const result = tagCharacter(char, tag);
+                const { notice } = result;
+                char = result.name;
 
                 state.fruitAssignments[char] = Array.from({ length: FRUITS_PER_CHAR }, (_, i) => targets[i] || '');
                 state.fruitObtained[char] = Array(FRUITS_PER_CHAR).fill(false);
@@ -2878,6 +2921,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (notice) customAlert(notice);
             };
         });
+
+        $('autoTagCharacters').onclick = autoTagAllCharacters;
 
         $('resetPresetCharacter').onclick = async () => {
             const char = DOM.presetCharacterSelect.value;
