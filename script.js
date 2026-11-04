@@ -46,12 +46,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const OTHER_CATEGORY = '其他';
 
     // 快速分配組合 (按鈕 id 對應到果實清單)
+    //   tag：套用組合時自動在角色名稱後加上的註記，例如「虹夏(同族)」
     const PRESETS = [
-        { btnId: 'presetBtn1', fruits: ['同族加擊', '同族加命擊', '同族加擊速'] },
-        { btnId: 'presetBtn2', fruits: ['戰型加擊', '戰型加命擊', '戰型加擊速'] },
-        { btnId: 'presetBtn3', fruits: ['擊種加擊', '擊種加命擊', '擊種加擊速'] },
-        { btnId: 'presetBtn4', fruits: ['將消', '兵消', '速必'] }
+        { btnId: 'presetBtn1', fruits: ['同族加擊', '同族加命擊', '同族加擊速'], tag: '同族' },
+        { btnId: 'presetBtn2', fruits: ['戰型加擊', '戰型加命擊', '戰型加擊速'], tag: '戰型' },
+        { btnId: 'presetBtn3', fruits: ['擊種加擊', '擊種加命擊', '擊種加擊速'], tag: '擊種' },
+        { btnId: 'presetBtn4', fruits: ['將消', '兵消', '速必'], tag: '雙削' }
     ];
+
+    // 角色名稱最後的註記「(同族)」「（戰型）」…：只在果實分配使用，和抽卡統計比對名字時會先拿掉
+    const CHARACTER_TAG_RE = new RegExp(`\\s*[(（](?:${PRESETS.map((p) => p.tag).join('|')})[)）]$`);
+    const stripTag = (name) => String(name).replace(CHARACTER_TAG_RE, '');
+    const tagOf = (name) => (String(name).match(CHARACTER_TAG_RE) || [''])[0];
 
     // 需要存檔 / 備份 / 雲端同步的資料欄位 (單一來源)
     const DATA_FIELDS = [
@@ -1454,7 +1460,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const charList = (type) => (type === 'storage' ? state.storageCharacters : state.characters);
     const linkKey = (t, n) => `${t}|${n}`;
     const numberedName = (base, k) => (k === 1 ? base : `${base}-${k}`);
-    const baseNameOf = (name) => name.replace(/-\d+$/, '');
+    // 「虹夏-2(同族)」→「虹夏」(拿掉註記與編號)
+    const baseNameOf = (name) => stripTag(name).replace(/-\d+$/, '');
+    // 主力 + 倉庫中，拿掉註記後的名字 (編號與撞名都以這個判斷)
+    const plainNamesInUse = () => new Set([...state.characters, ...state.storageCharacters].map(stripTag));
 
     // 「虹夏*3、麒麟兒*2」→ [{ name: '虹夏', count: 3 }, { name: '麒麟兒', count: 2 }]
     //   也支援「2新春」(數字在前) 與「杏子α、*2」(上一隻 ×2)；
@@ -1570,11 +1579,14 @@ document.addEventListener('DOMContentLoaded', () => {
             row.rename = null;
             for (let k = 1; k < 100; k++) {
                 const n = numberedName(row.name, k);
-                const type = ['main', 'storage'].find((t) => charList(t).includes(n) && !linked.has(linkKey(t, n)) && !claimed.has(linkKey(t, n)));
-                if (type) {
-                    row.action = `link:${linkKey(type, n)}`;
-                    claimed.add(linkKey(type, n));
-                    return;
+                // 名稱有註記也算同名：「虹夏(同族)」= 「虹夏」
+                for (const t of ['main', 'storage']) {
+                    const c = charList(t).find((name) => stripTag(name) === n && !linked.has(linkKey(t, name)) && !claimed.has(linkKey(t, name)));
+                    if (c) {
+                        row.action = `link:${linkKey(t, c)}`;
+                        claimed.add(linkKey(t, c));
+                        return;
+                    }
                 }
             }
         });
@@ -1584,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 「新增」的角色依序取名：虹夏、虹夏-2、虹夏-3…… (主力和倉庫的名字一起算)
     //   preview：選了「改抽卡統計的名字」時，同名的其他列先用改好的名字預覽
     function assignGachaNewNames(preview = true) {
-        const used = new Set([...state.characters, ...state.storageCharacters]);
+        const used = plainNamesInUse();
         const renames = new Map();
         if (preview) {
             gachaImport.pending.forEach((row) => {
@@ -1615,7 +1627,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function gachaActionResult(row) {
         if (row.action.startsWith('add:')) {
             const where = row.action === 'add:storage' ? '倉庫' : '主力';
-            const exists = state.characters.includes(row.name) || state.storageCharacters.includes(row.name);
+            const exists = plainNamesInUse().has(row.name);
             const note = exists && row.newName !== row.name ? `（已有「${row.name}」）` : '';
             return `→ 新增到${where}「${row.newName}」${note}`;
         }
@@ -1638,13 +1650,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 對應時兩邊名字不同 (不看編號)：要選用哪個名字
     const namesDiffer = (row) => row.action.startsWith('link:') && baseNameOf(parseLinkAction(row.action).n) !== row.name;
 
-    // 果實分配的角色改用抽卡統計的名字：保留編號 (羌廆-2 → 羌瘣-2)，撞名時接下一個編號
-    function renamedTarget(target, gachaName, type) {
-        const suffix = target.match(/-(\d+)$/);
-        let k = suffix && baseNameOf(target) !== target ? parseInt(suffix[1], 10) : 1;
-        const taken = (n) => n !== target && (state.characters.includes(n) || state.storageCharacters.includes(n));
-        while (taken(numberedName(gachaName, k))) k++;
-        return numberedName(gachaName, k);
+    // 果實分配的角色改用抽卡統計的名字：保留編號與註記 (羌廆-2(同族) → 羌瘣-2(同族))，撞名時接下一個編號
+    function renamedTarget(target, gachaName) {
+        const plain = stripTag(target);
+        const suffix = plain.match(/-(\d+)$/);
+        let k = suffix ? parseInt(suffix[1], 10) : 1;
+        const others = new Set([...state.characters, ...state.storageCharacters].filter((n) => n !== target).map(stripTag));
+        while (others.has(numberedName(gachaName, k))) k++;
+        return numberedName(gachaName, k) + tagOf(target);
     }
 
     // 把「獲得角色」文字裡的某個角色名稱換掉，其他角色和寫法 (數量、分隔符號) 不動
@@ -1699,6 +1712,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 entry.name = newName;
             }
         });
+    }
+
+    // 對應時記下抽卡紀錄的日期 (排序用)；舊版對應的沒有日期、或抽卡統計改了日期時補上
+    function backfillGachaLinkDates() {
+        const dateByRid = new Map(gachaImport.records.map((r) => [String(r.id), r.date || '']));
+        let changed = 0;
+        state.gachaImports.forEach((entry) => {
+            const date = dateByRid.get(entry.rid);
+            if (!date) return;
+            entry.linked.forEach((link) => {
+                if (link.d !== date) {
+                    link.d = date;
+                    changed++;
+                }
+            });
+        });
+        return changed;
+    }
+
+    // 主力角色 → 對應的抽卡紀錄 { date, rid } (對應到多筆時取最新的)
+    function getGachaDateMap() {
+        const map = new Map();
+        state.gachaImports.forEach((entry) => entry.linked.forEach((link) => {
+            if (link.t !== 'main' || !link.d) return;
+            const prev = map.get(link.n);
+            if (!prev || link.d > prev.date || (link.d === prev.date && Number(entry.rid) > Number(prev.rid))) {
+                map.set(link.n, { date: link.d, rid: entry.rid });
+            }
+        }));
+        return map;
     }
 
     // 直接在抽卡統計改了名字：同一筆紀錄中「已處理的名字不見了、又多了一個沒處理的名字」，
@@ -1855,7 +1898,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const { records, source } = await loadGachaRecords();
             gachaImport.records = records;
             const recovered = recoverRenamedGachaEntries();
-            if (recovered > 0) saveData();
+            const dated = backfillGachaLinkDates();
+            if (recovered > 0 || dated > 0) commit();
             DOM.gachaImportSource.textContent = `資料來源：${source}`
                 + (recovered > 0 ? `（${recovered} 隻在抽卡統計改過名字的角色已自動接回）` : '');
         } catch (e) {
@@ -1933,7 +1977,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const t = row.action === 'add:storage' ? 'storage' : 'main';
                 charList(t).push(row.newName);
                 if (t === 'storage' && !state.storageAssignments[row.newName]) state.storageAssignments[row.newName] = Array(FRUITS_PER_CHAR).fill('');
-                entry.linked.push({ n: row.newName, t });
+                entry.linked.push({ n: row.newName, t, d: row.record.date || '' });
                 done.add++;
             } else if (row.action.startsWith('link:')) {
                 const { t, n } = parseLinkAction(row.action);
@@ -1946,7 +1990,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         target = newName;
                     }
                 }
-                entry.linked.push({ n: target, t });
+                entry.linked.push({ n: target, t, d: row.record.date || '' });
                 done.link++;
             } else if (row.action === 'trash') {
                 entry.trashed++;
@@ -2104,7 +2148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rid: e.rid,
                 name: e.name,
                 linked: Array.isArray(e.linked)
-                    ? e.linked.filter((l) => l && typeof l.n === 'string' && (l.t === 'main' || l.t === 'storage')).map((l) => ({ n: l.n, t: l.t }))
+                    ? e.linked.filter((l) => l && typeof l.n === 'string' && (l.t === 'main' || l.t === 'storage')).map((l) => ({ n: l.n, t: l.t, d: typeof l.d === 'string' ? l.d : '' }))
                     : [],
                 trashed: Number.isInteger(e.trashed) && e.trashed > 0 ? e.trashed : 0
             }));
@@ -2413,6 +2457,21 @@ document.addEventListener('DOMContentLoaded', () => {
             targetChars.sort((a, b) => getUnassignedFruitCount(a) - getUnassignedFruitCount(b));
         } else if (sortMode === 'unassigned_desc') {
             targetChars.sort((a, b) => getUnassignedFruitCount(b) - getUnassignedFruitCount(a));
+        } else if (sortMode === 'gacha_date_desc') {
+            // 依對應的抽卡活動日期，新的在上面；同一天依紀錄順序；沒對應的放最下面 (保持加入順序)
+            const dates = getGachaDateMap();
+            const order = new Map(state.characters.map((n, i) => [n, i]));
+            targetChars.sort((a, b) => {
+                const da = dates.get(a);
+                const db = dates.get(b);
+                if (da && db) {
+                    if (da.date !== db.date) return da.date < db.date ? 1 : -1;
+                    if (da.rid !== db.rid) return Number(db.rid) - Number(da.rid);
+                } else if (da || db) {
+                    return da ? -1 : 1;
+                }
+                return order.get(a) - order.get(b);
+            });
         }
 
         if (targetChars.length === 0) {
@@ -2785,18 +2844,29 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.sortCharacterBy.onchange = refreshTable;
 
         // 快速分配組合
-        PRESETS.forEach(({ btnId, fruits: targets }) => {
+        PRESETS.forEach(({ btnId, fruits: targets, tag }) => {
             $(btnId).onclick = () => {
-                const char = DOM.presetCharacterSelect.value;
+                let char = DOM.presetCharacterSelect.value;
                 if (!char) return customAlert('請先選擇角色');
 
                 const all = getAllFruits();
                 const missing = targets.filter((t) => !all.includes(t));
                 if (missing.length > 0) return customAlert(`果實清單中無此果實：${missing.join(', ')}`);
 
+                // 名稱加上 (或換成) 這個組合的註記：虹夏 → 虹夏(同族)、虹夏(同族) → 虹夏(戰型)
+                const tagged = `${stripTag(char)}(${tag})`;
+                let notice = '';
+                if (tagged !== char) {
+                    const error = renameCharacterData(char, tagged, 'main');
+                    if (error) notice = `已有「${tagged}」，名稱沒有加上註記。`;
+                    else char = tagged;
+                }
+
                 state.fruitAssignments[char] = Array.from({ length: FRUITS_PER_CHAR }, (_, i) => targets[i] || '');
                 state.fruitObtained[char] = Array(FRUITS_PER_CHAR).fill(false);
                 commit();
+                DOM.presetCharacterSelect.value = char;
+                if (notice) customAlert(notice);
             };
         });
 
