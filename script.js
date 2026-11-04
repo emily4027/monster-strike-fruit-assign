@@ -1774,11 +1774,41 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<div class="gi-bulk"><button class="btn btn-gray btn-small" id="giResetDefaults">全部恢復預設</button>
                <button class="btn btn-gray btn-small" id="giSkipAll">全部先不處理</button></div>`
             : '';
-        list.innerHTML = bulk + groupGachaRows(rows).map((group) => `
-            <div class="gi-group">
-                <div class="gi-group-title">${escapeHtml(gachaRecordLabel(group.record))}</div>
-                ${group.items.map(({ row, index }) => itemHtml(row, index)).join('')}
-            </div>`).join('');
+        // 依月份收合 (最新的月份在上面)；只有展開的月份才產生內容
+        const months = [];
+        groupGachaRows(rows).forEach((group) => {
+            const month = /^\d{4}-\d{2}/.test(group.record.date || '') ? group.record.date.slice(0, 7) : '日期不明';
+            let entry = months.find((m) => m.month === month);
+            if (!entry) {
+                entry = { month, groups: [], count: 0 };
+                months.push(entry);
+            }
+            entry.groups.push(group);
+            entry.count += group.items.length;
+        });
+        const openKey = (month) => `${gachaImport.tab}|${month}`;
+        // 每個分頁第一次顯示時，只展開最新的月份
+        if (!gachaImport.openMonths) {
+            gachaImport.openMonths = new Set();
+            gachaImport.seenTabs = new Set();
+        }
+        if (!gachaImport.seenTabs.has(gachaImport.tab)) {
+            gachaImport.seenTabs.add(gachaImport.tab);
+            if (months.length) gachaImport.openMonths.add(openKey(months[0].month));
+        }
+
+        list.innerHTML = bulk + months.map(({ month, groups, count }) => {
+            const open = gachaImport.openMonths.has(openKey(month));
+            const body = open ? groups.map((group) => `
+                <div class="gi-group">
+                    <div class="gi-group-title">${escapeHtml(gachaRecordLabel(group.record))}</div>
+                    ${group.items.map(({ row, index }) => itemHtml(row, index)).join('')}
+                </div>`).join('') : '';
+            return `<div class="gi-month">
+                <button class="gi-month-title" data-month="${escapeHtml(month)}">${open ? '▾' : '▸'} ${escapeHtml(month)}<span class="gi-month-count">${count} 隻</span></button>
+                ${body}
+            </div>`;
+        }).join('');
     }
 
     function renderGachaAccounts() {
@@ -1814,6 +1844,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         renderGachaAccounts();
+        gachaImport.openMonths = null;   // 打開時只展開最新的月份
         buildGachaRows();
         renderGachaImport();
     }
@@ -1924,6 +1955,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         DOM.gachaAccountSelect.onchange = () => {
             gachaImport.account = DOM.gachaAccountSelect.value;
+            gachaImport.openMonths = null;   // 換帳號時只展開最新的月份
             buildGachaRows();
             renderGachaImport();
         };
@@ -1974,6 +2006,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         DOM.gachaImportList.onclick = (e) => {
             const target = e.target;
+            const monthBtn = target.closest('.gi-month-title');
+            if (monthBtn) {
+                const key = `${gachaImport.tab}|${monthBtn.dataset.month}`;
+                if (gachaImport.openMonths.has(key)) gachaImport.openMonths.delete(key);
+                else gachaImport.openMonths.add(key);
+                return renderGachaImport();
+            }
             if (target.id === 'giResetDefaults') {
                 setDefaultGachaActions();
                 return renderGachaImport();
