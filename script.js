@@ -1429,16 +1429,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const baseNameOf = (name) => name.replace(/-\d+$/, '');
 
     // 「虹夏*3、麒麟兒*2」→ [{ name: '虹夏', count: 3 }, { name: '麒麟兒', count: 2 }]
+    //   也支援「2新春」(數字在前) 與「杏子α、*2」(上一隻 ×2)；
+    //   「3抽」「11顆」「無」和單獨的數字不是角色，會略過
+    const GACHA_NOT_CHARACTER = /^(?:[\d?？]+\s*抽|\d+\s*顆|\d+|無)$/;
     function parseGachaCharacters(notes) {
         const counts = new Map();
+        let last = '';
         String(notes || '').split(/[,，、\s+]+/).forEach((part) => {
             const p = part.trim();
             if (!p) return;
+            if (GACHA_NOT_CHARACTER.test(p)) {
+                last = '';   // 「光屬8、9、*2」的 *2 是接在 9 後面，不套到光屬8
+                return;
+            }
+
+            const bare = p.match(/^[*xX×](\d+)$/);   // 單獨的「*2」：上一隻角色 ×2
+            if (bare) {
+                if (last) counts.set(last, counts.get(last) + Math.min(parseInt(bare[1], 10), 99) - 1);
+                return;
+            }
+
             const m = p.match(/^(.+?)(?:[ *xX×]+(\d+)[隻體]?|(\d+)[隻體])?$/);
             if (!m) return;
-            const name = m[1].trim();
-            const count = Math.min(parseInt(m[2] || m[3] || '1', 10), 99);
-            if (name && count > 0) counts.set(name, (counts.get(name) || 0) + count);
+            let name = m[1].trim();
+            let count = parseInt(m[2] || m[3] || '1', 10);
+            // 數字在前：「2新春」= 新春 ×2 (「8號」這種一個字的不算)
+            const lead = !m[2] && !m[3] && name.match(/^(\d+)(\D{2,}.*)$/);
+            if (lead) {
+                count = parseInt(lead[1], 10);
+                name = lead[2].trim();
+            }
+            count = Math.min(count, 99);
+            if (!name || count <= 0) return;
+            counts.set(name, (counts.get(name) || 0) + count);
+            last = name;
         });
         return [...counts].map(([name, count]) => ({ name, count }));
     }
