@@ -1448,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
     //   對應到已有角色 / 丟進垃圾桶 / 先不處理。處理結果記在 state.gachaImports，
     //   所以已處理的角色不會再出現在「待處理」。
     // =====================================================
-    const gachaImport = { records: [], account: '', tab: 'pending', pending: [], imported: [], trashed: [] };
+    const gachaImport = { records: [], account: '', tab: 'pending', pending: [], imported: [], trashed: [], checkedRids: new Set() };
 
     const charList = (type) => (type === 'storage' ? state.storageCharacters : state.characters);
     const linkKey = (t, n) => `${t}|${n}`;
@@ -1554,10 +1554,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 預設動作：有同名 (或同名編號) 且還沒對應過的角色 → 對應到它；否則新增到主力
-    function setDefaultGachaActions() {
+    //   onlyRids：只重設這些紀錄的列 (其他列目前選的對應不會被搶走)
+    function setDefaultGachaActions(onlyRids = null) {
         const linked = getLinkedSet();
         const claimed = new Set();
+        if (onlyRids) {
+            gachaImport.pending.forEach((row) => {
+                if (!onlyRids.has(row.rid) && row.action.startsWith('link:')) claimed.add(row.action.slice(5));
+            });
+        }
         gachaImport.pending.forEach((row) => {
+            if (onlyRids && !onlyRids.has(row.rid)) return;
             row.action = 'add:main';
             row.rename = null;
             for (let k = 1; k < 100; k++) {
@@ -1594,7 +1601,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const gachaRecordLabel = (record) => `${record.date || ''} ${record.event || ''}`.trim();
+    // 活動名稱本身已有年月 (例如「2026-11月 藍色監獄」)，不再另外顯示日期
+    const gachaRecordLabel = (record) => String(record.event || '').trim() || record.date || '';
 
     function gachaActionResult(row) {
         if (row.action.startsWith('add:')) {
@@ -1771,8 +1779,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const bulk = gachaImport.tab === 'pending'
-            ? `<div class="gi-bulk"><button class="btn btn-gray btn-small" id="giResetDefaults">全部恢復預設</button>
-               <button class="btn btn-gray btn-small" id="giSkipAll">全部先不處理</button></div>`
+            ? `<div class="gi-bulk"><span class="gi-bulk-label">勾選的活動（${gachaImport.checkedRids.size}）：</span>
+               <button class="btn btn-gray btn-small" id="giResetDefaults">恢復預設</button>
+               <button class="btn btn-gray btn-small" id="giSkipAll">先不處理</button>
+               <button class="btn btn-gray btn-small" id="giUncheckAll">取消勾選</button></div>`
             : '';
         // 依月份收合 (最新的月份在上面)；只有展開的月份才產生內容
         const months = [];
@@ -1801,7 +1811,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const open = gachaImport.openMonths.has(openKey(month));
             const body = open ? groups.map((group) => `
                 <div class="gi-group">
-                    <div class="gi-group-title">${escapeHtml(gachaRecordLabel(group.record))}</div>
+                    ${gachaImport.tab === 'pending'
+                        ? `<label class="gi-group-title"><input type="checkbox" class="gi-check" data-rid="${escapeHtml(group.record.id)}"${gachaImport.checkedRids.has(String(group.record.id)) ? ' checked' : ''}> ${escapeHtml(gachaRecordLabel(group.record))}</label>`
+                        : `<div class="gi-group-title">${escapeHtml(gachaRecordLabel(group.record))}</div>`}
                     ${group.items.map(({ row, index }) => itemHtml(row, index)).join('')}
                 </div>`).join('') : '';
             return `<div class="gi-month">
@@ -1845,6 +1857,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         renderGachaAccounts();
         gachaImport.openMonths = null;   // 打開時只展開最新的月份
+        gachaImport.checkedRids.clear();
         buildGachaRows();
         renderGachaImport();
     }
@@ -1956,6 +1969,7 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.gachaAccountSelect.onchange = () => {
             gachaImport.account = DOM.gachaAccountSelect.value;
             gachaImport.openMonths = null;   // 換帳號時只展開最新的月份
+            gachaImport.checkedRids.clear();
             buildGachaRows();
             renderGachaImport();
         };
@@ -1969,6 +1983,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 改動作時只更新結果文字 (新增的編號會跟著其他列的選擇變動)
         DOM.gachaImportList.onchange = async (e) => {
+            if (e.target.classList.contains('gi-check')) {
+                const rid = e.target.dataset.rid;
+                if (e.target.checked) gachaImport.checkedRids.add(rid);
+                else gachaImport.checkedRids.delete(rid);
+                const label = DOM.gachaImportList.querySelector('.gi-bulk-label');
+                if (label) label.textContent = `勾選的活動（${gachaImport.checkedRids.size}）：`;
+                return;
+            }
             if (!e.target.classList.contains('gi-action')) return;
             const row = gachaImport.pending[Number(e.target.dataset.index)];
             const previous = row.action;
@@ -2013,13 +2035,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 else gachaImport.openMonths.add(key);
                 return renderGachaImport();
             }
+            if (['giResetDefaults', 'giSkipAll'].includes(target.id) && gachaImport.checkedRids.size === 0) {
+                return customAlert('請先在活動名稱旁打勾，再選擇要套用的動作。');
+            }
             if (target.id === 'giResetDefaults') {
-                setDefaultGachaActions();
+                setDefaultGachaActions(gachaImport.checkedRids);
                 return renderGachaImport();
             }
             if (target.id === 'giSkipAll') {
-                gachaImport.pending.forEach((row) => { row.action = 'skip'; });
+                gachaImport.pending.forEach((row) => {
+                    if (!gachaImport.checkedRids.has(row.rid)) return;
+                    row.action = 'skip';
+                    row.rename = null;
+                });
                 assignGachaNewNames();
+                return renderGachaImport();
+            }
+            if (target.id === 'giUncheckAll') {
+                gachaImport.checkedRids.clear();
                 return renderGachaImport();
             }
             const index = Number(target.dataset.index);
