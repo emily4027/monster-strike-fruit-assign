@@ -67,6 +67,7 @@
         <div class="control-row">
             <input type="text" id="newCharacter" placeholder="輸入主力角色名稱" class="input-wide">
             <button id="addCharacter" class="btn btn-green">➕ 新增角色</button>
+            <button id="gachaImportBtn" class="btn btn-blue">🎰 從抽卡統計匯入</button>
             <button id="showCharacterList" class="btn btn-blue">📋 角色清單 (<span id="characterCount">0</span>)</button>
             <button id="resetCharacterList" class="btn btn-red">🔄 重置角色清單</button>
         </div>
@@ -330,6 +331,31 @@
             <div class="modal-footer">
                 <button class="close-btn-action btn btn-gray">取消</button>
                 <button id="confirmPullBtn" class="btn btn-green">確認搬入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3-2. 從抽卡統計匯入 Modal -->
+    <div id="gachaImportModal" class="modal">
+        <div class="modal-content gacha-import-modal">
+            <div class="modal-header">
+                <h3>🎰 從抽卡統計匯入</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <p id="gachaImportSource" class="gi-source"></p>
+            <div class="gi-account-row">
+                <label for="gachaAccountSelect">抽卡帳號：</label>
+                <select id="gachaAccountSelect"></select>
+            </div>
+            <div class="gi-tabs">
+                <button class="gi-tab active" data-gi-tab="pending">待處理 (<span id="giCountPending">0</span>)</button>
+                <button class="gi-tab" data-gi-tab="imported">已匯入 (<span id="giCountImported">0</span>)</button>
+                <button class="gi-tab" data-gi-tab="trashed">🗑️ 垃圾桶 (<span id="giCountTrash">0</span>)</button>
+            </div>
+            <div id="gachaImportList" class="gi-list"></div>
+            <div class="modal-footer">
+                <button class="close-btn-action btn btn-gray">關閉</button>
+                <button id="confirmGachaImportBtn" class="btn btn-green">匯入</button>
             </div>
         </div>
     </div>

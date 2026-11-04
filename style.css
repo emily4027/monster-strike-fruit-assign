@@ -629,3 +629,22 @@ tr.row-completed td:first-child {
         flex-direction: column;
     }
 }
+/* --- 從抽卡統計匯入 --- */
+.gacha-import-modal { max-width: 640px; }
+.gi-source { color: #666; font-size: 13px; margin: 0 0 10px; }
+.gi-account-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.gi-account-row select { flex: 1; min-width: 0; }
+.gi-tabs { display: flex; gap: 6px; border-bottom: 1px solid #dee2e6; margin-bottom: 10px; flex-wrap: wrap; }
+.gi-tab { background: #e9ecef; border: none; padding: 8px 12px; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: bold; color: #495057; }
+.gi-tab.active { background: #007bff; color: white; }
+.gi-list { max-height: 50vh; overflow-y: auto; overflow-x: hidden; }
+.gi-bulk { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 8px; }
+.gi-group { border: 1px solid #eee; border-radius: 5px; margin-bottom: 10px; }
+.gi-group-title { background: #f8f9fa; padding: 6px 10px; font-size: 13px; font-weight: bold; color: #555; }
+.gi-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid #f1f1f1; flex-wrap: wrap; }
+.gi-name { font-weight: bold; min-width: 6em; }
+.gi-action { max-width: 100%; min-width: 0; flex: 0 1 12em; }
+.gi-result { color: #555; font-size: 13px; flex: 1; min-width: 8em; }
+.gi-row .btn-small { margin-left: auto; }
+.gi-empty { color: #888; text-align: center; padding: 20px 0; }
+.btn-small { padding: 4px 10px; font-size: 12px; }

@@ -56,8 +56,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 需要存檔 / 備份 / 雲端同步的資料欄位 (單一來源)
     const DATA_FIELDS = [
         'characters', 'fruitAssignments', 'fruitCategories', 'fruitObtained',
-        'bankAssignments', 'storageCharacters', 'storageAssignments', 'recordName'
+        'bankAssignments', 'storageCharacters', 'storageAssignments', 'recordName',
+        'gachaImports', 'gachaAccount'
     ];
+
+    // 從抽卡統計匯入：讀取抽卡統計的資料 (只讀不寫)
+    //   抽卡統計改了這些路徑 / 欄位 (account、notes、tag、date、event、id) 時，這邊也要一起改
+    const GACHA_LOCAL_KEY = 'gachaRecords';          // localStorage：抽卡統計的本機紀錄 (同網域共用)
+    const GACHA_CLOUD_DOC = ['data', 'gacha_records']; // 雲端：artifacts/{appId}/users/{uid}/data/gacha_records
+    const GACHA_SKIP_TAGS = ['orb'];                 // 寶珠紀錄的「獲得角色」是數量，不是角色
 
 
     // =====================================================
@@ -75,7 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
         bankAssignments: Array(BANK_SLOTS).fill(''),
         storageCharacters: [],
         storageAssignments: {},
-        recordName: ''
+        recordName: '',
+        // 抽卡紀錄的匯入狀態：[{ rid: 紀錄 id, name: 抽卡角色名, linked: [{ n: 果實分配角色名, t: 'main'|'storage' }], trashed: 丟進垃圾桶的數量 }]
+        gachaImports: [],
+        gachaAccount: ''   // 上次選的抽卡帳號
     });
 
     const debounce = (func, wait) => {
@@ -186,6 +196,14 @@ document.addEventListener('DOMContentLoaded', () => {
         storageSourceSelector: $('storageSourceSelector'),
         storageSourceSlotSelect: $('storageSourceSlotSelect'),
 
+        // 從抽卡統計匯入 Modal
+        gachaImportBtn: $('gachaImportBtn'),
+        gachaImportModal: $('gachaImportModal'),
+        gachaImportSource: $('gachaImportSource'),
+        gachaAccountSelect: $('gachaAccountSelect'),
+        gachaImportList: $('gachaImportList'),
+        confirmGachaImportBtn: $('confirmGachaImportBtn'),
+
         // 雲端狀態
         cloudStatus: $('cloudStatus'),
         cloudStatusText: $('cloudStatusText'),
@@ -263,6 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const defaults = createDefaultState();
         DATA_FIELDS.forEach((field) => { state[field] = data[field] || defaults[field]; });
         state.bankAssignments = normalizeBank(state.bankAssignments);
+        state.gachaImports = sanitizeGachaImports(state.gachaImports);
+        if (typeof state.gachaAccount !== 'string') state.gachaAccount = '';
     }
 
     function updateCloudStatus(status, msg) {
@@ -285,6 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (item) data[field] = JSON.parse(item);
         });
         data.bankAssignments = normalizeBank(data.bankAssignments);
+        data.gachaImports = sanitizeGachaImports(data.gachaImports);
+        if (typeof data.gachaAccount !== 'string') data.gachaAccount = '';
         return data;
     }
 
@@ -1394,6 +1416,371 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // =====================================================
+    // 8-1. 從抽卡統計匯入角色
+    //   每筆抽卡紀錄的「獲得角色」拆成一隻一隻，每隻可以：新增到主力 / 新增到倉庫 /
+    //   對應到已有角色 / 丟進垃圾桶 / 先不處理。處理結果記在 state.gachaImports，
+    //   所以已處理的角色不會再出現在「待處理」。
+    // =====================================================
+    const gachaImport = { records: [], account: '', tab: 'pending', pending: [], imported: [], trashed: [] };
+
+    const charList = (type) => (type === 'storage' ? state.storageCharacters : state.characters);
+    const linkKey = (t, n) => `${t}|${n}`;
+    const numberedName = (base, k) => (k === 1 ? base : `${base}-${k}`);
+    const baseNameOf = (name) => name.replace(/-\d+$/, '');
+
+    // 「虹夏*3、麒麟兒*2」→ [{ name: '虹夏', count: 3 }, { name: '麒麟兒', count: 2 }]
+    function parseGachaCharacters(notes) {
+        const counts = new Map();
+        String(notes || '').split(/[,，、\s+]+/).forEach((part) => {
+            const p = part.trim();
+            if (!p) return;
+            const m = p.match(/^(.+?)(?:[ *xX×]+(\d+)[隻體]?|(\d+)[隻體])?$/);
+            if (!m) return;
+            const name = m[1].trim();
+            const count = Math.min(parseInt(m[2] || m[3] || '1', 10), 99);
+            if (name && count > 0) counts.set(name, (counts.get(name) || 0) + count);
+        });
+        return [...counts].map(([name, count]) => ({ name, count }));
+    }
+
+    // 登入時讀抽卡統計的雲端紀錄，未登入時讀這台電腦上的紀錄
+    async function loadGachaRecords() {
+        let list;
+        let source;
+        if (isCloudMode && currentUser && db) {
+            const { doc, getDoc } = window.firebaseModules;
+            const snap = await getDoc(doc(db, 'artifacts', envAppId, 'users', currentUser.uid, ...GACHA_CLOUD_DOC));
+            list = snap.exists() ? snap.data().records : [];
+            source = '抽卡統計的雲端紀錄（已登入）';
+        } else {
+            list = readJson(GACHA_LOCAL_KEY, []);
+            source = '這台電腦上的抽卡統計紀錄（未登入）';
+        }
+        const records = (Array.isArray(list) ? list : []).filter((r) => r && typeof r === 'object'
+            && r.id !== undefined && r.id !== null
+            && typeof r.account === 'string' && r.account
+            && !GACHA_SKIP_TAGS.includes(r.tag));
+        return { records, source };
+    }
+
+    const findGachaEntry = (rid, name) => state.gachaImports.find((e) => e.rid === rid && e.name === name);
+    function ensureGachaEntry(rid, name) {
+        let entry = findGachaEntry(rid, name);
+        if (!entry) {
+            entry = { rid, name, linked: [], trashed: 0 };
+            state.gachaImports.push(entry);
+        }
+        return entry;
+    }
+
+    // 已對應過的果實分配角色 (同一個角色只能對應一隻抽到的角色)
+    const getLinkedSet = () => new Set(state.gachaImports.flatMap((e) => e.linked.map((l) => linkKey(l.t, l.n))));
+
+    // 依目前帳號整理出 待處理 / 已匯入 / 垃圾桶 三份清單 (由舊到新，第一隻抽到的拿原名)
+    function buildGachaRows() {
+        const records = gachaImport.records
+            .filter((r) => r.account === gachaImport.account)
+            .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || Number(a.id) - Number(b.id));
+        const pending = [];
+        const imported = [];
+        const trashed = [];
+        records.forEach((record) => {
+            const rid = String(record.id);
+            parseGachaCharacters(record.notes).forEach(({ name, count }) => {
+                const entry = findGachaEntry(rid, name);
+                const linked = entry ? entry.linked : [];
+                const trashCount = entry ? entry.trashed : 0;
+                linked.forEach((link) => imported.push({ record, rid, name, link }));
+                for (let i = 0; i < trashCount; i++) trashed.push({ record, rid, name });
+                const left = Math.max(0, count - linked.length - trashCount);
+                for (let i = 0; i < left; i++) pending.push({ record, rid, name, action: '', newName: '' });
+            });
+        });
+        gachaImport.pending = pending;
+        gachaImport.imported = imported;
+        gachaImport.trashed = trashed;
+        setDefaultGachaActions();
+    }
+
+    // 預設動作：有同名 (或同名編號) 且還沒對應過的角色 → 對應到它；否則新增到主力
+    function setDefaultGachaActions() {
+        const linked = getLinkedSet();
+        const claimed = new Set();
+        gachaImport.pending.forEach((row) => {
+            row.action = 'add:main';
+            for (let k = 1; k < 100; k++) {
+                const n = numberedName(row.name, k);
+                const type = ['main', 'storage'].find((t) => charList(t).includes(n) && !linked.has(linkKey(t, n)) && !claimed.has(linkKey(t, n)));
+                if (type) {
+                    row.action = `link:${linkKey(type, n)}`;
+                    claimed.add(linkKey(type, n));
+                    return;
+                }
+            }
+        });
+        assignGachaNewNames();
+    }
+
+    // 「新增」的角色依序取名：虹夏、虹夏-2、虹夏-3…… (主力和倉庫的名字一起算)
+    function assignGachaNewNames() {
+        const used = new Set([...state.characters, ...state.storageCharacters]);
+        gachaImport.pending.forEach((row) => {
+            row.newName = '';
+            if (!row.action.startsWith('add:')) return;
+            let k = 1;
+            while (used.has(numberedName(row.name, k))) k++;
+            row.newName = numberedName(row.name, k);
+            used.add(row.newName);
+        });
+    }
+
+    const gachaRecordLabel = (record) => `${record.date || ''} ${record.event || ''}`.trim();
+
+    function gachaActionResult(row) {
+        if (row.action.startsWith('add:')) {
+            const where = row.action === 'add:storage' ? '倉庫' : '主力';
+            const exists = state.characters.includes(row.name) || state.storageCharacters.includes(row.name);
+            const note = exists && row.newName !== row.name ? `（已有「${row.name}」）` : '';
+            return `→ 新增到${where}「${row.newName}」${note}`;
+        }
+        if (row.action.startsWith('link:')) {
+            const [t, ...rest] = row.action.slice(5).split('|');
+            return `→ 對應到${t === 'storage' ? '倉庫' : ''}「${rest.join('|')}」`;
+        }
+        if (row.action === 'trash') return '→ 移到垃圾桶';
+        return '';
+    }
+
+    function gachaActionOptionsHtml(row, linked) {
+        const opt = (value, text) => `<option value="${escapeHtml(value)}"${row.action === value ? ' selected' : ''}>${escapeHtml(text)}</option>`;
+        // 可對應的角色：還沒被對應過的主力 / 倉庫角色，同名或名字相近的排前面
+        const score = (n) => (baseNameOf(n) === row.name ? 0 : (n.includes(row.name) || row.name.includes(n) ? 1 : 2));
+        const candidates = ['main', 'storage']
+            .flatMap((t) => charList(t).map((n) => ({ t, n })))
+            .filter(({ t, n }) => !linked.has(linkKey(t, n)))
+            .sort((a, b) => score(a.n) - score(b.n));
+        const linkOptions = candidates
+            .map(({ t, n }) => opt(`link:${linkKey(t, n)}`, `🔗 ${n}${t === 'storage' ? '（倉庫）' : ''}`))
+            .join('');
+        return opt('add:main', '➕ 新增到主力')
+            + opt('add:storage', '➕ 新增到倉庫')
+            + (linkOptions ? `<optgroup label="對應到已有角色">${linkOptions}</optgroup>` : '')
+            + opt('trash', '🗑️ 不需要')
+            + opt('skip', '⏸ 先不處理');
+    }
+
+    // 依紀錄分組 (最新的紀錄在最上面)
+    function groupGachaRows(rows) {
+        const groups = [];
+        const byRid = new Map();
+        rows.forEach((row, index) => {
+            if (!byRid.has(row.rid)) {
+                const group = { record: row.record, items: [] };
+                byRid.set(row.rid, group);
+                groups.push(group);
+            }
+            byRid.get(row.rid).items.push({ row, index });
+        });
+        return groups.reverse();
+    }
+
+    function renderGachaImport() {
+        $('giCountPending').textContent = gachaImport.pending.length;
+        $('giCountImported').textContent = gachaImport.imported.length;
+        $('giCountTrash').textContent = gachaImport.trashed.length;
+        document.querySelectorAll('.gi-tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.giTab === gachaImport.tab));
+        DOM.confirmGachaImportBtn.style.display = gachaImport.tab === 'pending' && gachaImport.pending.length ? '' : 'none';
+
+        const list = DOM.gachaImportList;
+        const rows = gachaImport[gachaImport.tab];
+        if (!gachaImport.account) {
+            list.innerHTML = '<p class="gi-empty">沒有找到抽卡紀錄。</p>';
+            return;
+        }
+        if (rows.length === 0) {
+            const empty = { pending: '沒有待處理的角色，這個帳號的抽卡紀錄都處理過了。', imported: '還沒有匯入或對應過的角色。', trashed: '垃圾桶是空的。' };
+            list.innerHTML = `<p class="gi-empty">${empty[gachaImport.tab]}</p>`;
+            return;
+        }
+
+        const linked = getLinkedSet();
+        const itemHtml = (row, index) => {
+            const name = `<span class="gi-name">${escapeHtml(row.name)}</span>`;
+            if (gachaImport.tab === 'pending') {
+                return `<div class="gi-row">${name}
+                    <select class="gi-action" data-index="${index}">${gachaActionOptionsHtml(row, linked)}</select>
+                    <span class="gi-result" data-result="${index}">${escapeHtml(gachaActionResult(row))}</span></div>`;
+            }
+            if (gachaImport.tab === 'imported') {
+                const target = `${row.link.n}${row.link.t === 'storage' ? '（倉庫）' : ''}`;
+                return `<div class="gi-row">${name}<span class="gi-result">→ ${escapeHtml(target)}</span>
+                    <button class="btn btn-gray btn-small gi-unlink" data-index="${index}">取消對應</button></div>`;
+            }
+            return `<div class="gi-row">${name}<button class="btn btn-blue btn-small gi-restore" data-index="${index}">找回</button></div>`;
+        };
+
+        const bulk = gachaImport.tab === 'pending'
+            ? `<div class="gi-bulk"><button class="btn btn-gray btn-small" id="giResetDefaults">全部恢復預設</button>
+               <button class="btn btn-gray btn-small" id="giSkipAll">全部先不處理</button></div>`
+            : '';
+        list.innerHTML = bulk + groupGachaRows(rows).map((group) => `
+            <div class="gi-group">
+                <div class="gi-group-title">${escapeHtml(gachaRecordLabel(group.record))}</div>
+                ${group.items.map(({ row, index }) => itemHtml(row, index)).join('')}
+            </div>`).join('');
+    }
+
+    function renderGachaAccounts() {
+        const counts = new Map();
+        gachaImport.records.forEach((r) => counts.set(r.account, (counts.get(r.account) || 0) + 1));
+        const accounts = [...counts.keys()];
+        DOM.gachaAccountSelect.innerHTML = '';
+        accounts.forEach((a) => addOption(DOM.gachaAccountSelect, a, `${a} (${counts.get(a)} 筆)`));
+        // 這個存檔上次選的帳號；第一次用時選紀錄最多的帳號
+        gachaImport.account = accounts.includes(state.gachaAccount)
+            ? state.gachaAccount
+            : [...counts].sort((a, b) => b[1] - a[1]).map(([a]) => a)[0] || '';
+        DOM.gachaAccountSelect.value = gachaImport.account;
+        DOM.gachaAccountSelect.disabled = accounts.length === 0;
+    }
+
+    async function openGachaImport() {
+        gachaImport.tab = 'pending';
+        DOM.gachaImportSource.textContent = '讀取抽卡紀錄中...';
+        DOM.gachaImportList.innerHTML = '';
+        DOM.confirmGachaImportBtn.style.display = 'none';
+        toggleModal(DOM.gachaImportModal, true);
+        try {
+            const { records, source } = await loadGachaRecords();
+            gachaImport.records = records;
+            DOM.gachaImportSource.textContent = `資料來源：${source}`;
+        } catch (e) {
+            console.error('[GACHA] 讀取抽卡紀錄失敗', e);
+            DOM.gachaImportSource.textContent = '讀取抽卡紀錄失敗，請檢查網路後再試一次。';
+            return;
+        }
+        renderGachaAccounts();
+        buildGachaRows();
+        renderGachaImport();
+    }
+
+    function performGachaImport() {
+        const rows = gachaImport.pending.filter((row) => row.action && row.action !== 'skip');
+        if (rows.length === 0) return customAlert('沒有要處理的角色（都設為「先不處理」）。');
+
+        // 同一個角色不能對應兩次
+        const targets = rows.filter((row) => row.action.startsWith('link:')).map((row) => row.action.slice(5));
+        const dup = targets.find((t, i) => targets.indexOf(t) !== i);
+        if (dup) return customAlert(`「${dup.split('|').slice(1).join('|')}」被選了兩次對應，同一個角色只能對應一隻。`);
+
+        const done = { add: 0, link: 0, trash: 0 };
+        rows.forEach((row) => {
+            const entry = ensureGachaEntry(row.rid, row.name);
+            if (row.action.startsWith('add:')) {
+                const t = row.action === 'add:storage' ? 'storage' : 'main';
+                charList(t).push(row.newName);
+                if (t === 'storage' && !state.storageAssignments[row.newName]) state.storageAssignments[row.newName] = Array(FRUITS_PER_CHAR).fill('');
+                entry.linked.push({ n: row.newName, t });
+                done.add++;
+            } else if (row.action.startsWith('link:')) {
+                const [t, ...rest] = row.action.slice(5).split('|');
+                entry.linked.push({ n: rest.join('|'), t });
+                done.link++;
+            } else if (row.action === 'trash') {
+                entry.trashed++;
+                done.trash++;
+            }
+        });
+
+        state.gachaAccount = gachaImport.account;
+        commit();
+        buildGachaRows();
+        renderGachaImport();
+        customAlert(`已新增 ${done.add} 位、對應 ${done.link} 位、移到垃圾桶 ${done.trash} 位。`, '匯入完成');
+    }
+
+    function bindGachaImportEvents() {
+        DOM.gachaImportBtn.onclick = openGachaImport;
+        DOM.confirmGachaImportBtn.onclick = performGachaImport;
+
+        DOM.gachaAccountSelect.onchange = () => {
+            gachaImport.account = DOM.gachaAccountSelect.value;
+            buildGachaRows();
+            renderGachaImport();
+        };
+
+        document.querySelectorAll('.gi-tab').forEach((btn) => {
+            btn.onclick = () => {
+                gachaImport.tab = btn.dataset.giTab;
+                renderGachaImport();
+            };
+        });
+
+        // 改動作時只更新結果文字 (新增的編號會跟著其他列的選擇變動)
+        DOM.gachaImportList.onchange = (e) => {
+            if (!e.target.classList.contains('gi-action')) return;
+            gachaImport.pending[Number(e.target.dataset.index)].action = e.target.value;
+            assignGachaNewNames();
+            gachaImport.pending.forEach((row, i) => {
+                const el = DOM.gachaImportList.querySelector(`[data-result="${i}"]`);
+                if (el) el.textContent = gachaActionResult(row);
+            });
+        };
+
+        DOM.gachaImportList.onclick = (e) => {
+            const target = e.target;
+            if (target.id === 'giResetDefaults') {
+                setDefaultGachaActions();
+                return renderGachaImport();
+            }
+            if (target.id === 'giSkipAll') {
+                gachaImport.pending.forEach((row) => { row.action = 'skip'; });
+                assignGachaNewNames();
+                return renderGachaImport();
+            }
+            const index = Number(target.dataset.index);
+            if (target.classList.contains('gi-unlink')) {
+                // 只解除對應，果實分配裡的角色不會被刪除
+                const { rid, name, link } = gachaImport.imported[index];
+                const entry = findGachaEntry(rid, name);
+                if (entry) entry.linked = entry.linked.filter((l) => l !== link);
+            } else if (target.classList.contains('gi-restore')) {
+                const { rid, name } = gachaImport.trashed[index];
+                const entry = findGachaEntry(rid, name);
+                if (entry && entry.trashed > 0) entry.trashed--;
+            } else {
+                return;
+            }
+            commit();
+            buildGachaRows();
+            renderGachaImport();
+        };
+    }
+
+    // 改名時，對應到這個角色的抽卡紀錄也跟著改
+    function renameGachaLinks(oldName, newName, type) {
+        state.gachaImports.forEach((entry) => entry.linked.forEach((l) => {
+            if (l.t === type && l.n === oldName) l.n = newName;
+        }));
+    }
+
+    // 讀入的匯入狀態格式不對時丟掉該筆，避免畫面出錯
+    function sanitizeGachaImports(list) {
+        if (!Array.isArray(list)) return [];
+        return list
+            .filter((e) => e && typeof e.rid === 'string' && typeof e.name === 'string')
+            .map((e) => ({
+                rid: e.rid,
+                name: e.name,
+                linked: Array.isArray(e.linked)
+                    ? e.linked.filter((l) => l && typeof l.n === 'string' && (l.t === 'main' || l.t === 'storage')).map((l) => ({ n: l.n, t: l.t }))
+                    : [],
+                trashed: Number.isInteger(e.trashed) && e.trashed > 0 ? e.trashed : 0
+            }));
+    }
+
+
+    // =====================================================
     // 9. 渲染
     // =====================================================
     function updateTitle() {
@@ -1808,6 +2195,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (idx !== -1) state.storageCharacters[idx] = newName;
             renameKey(state.storageAssignments);
         }
+        renameGachaLinks(oldName, newName, type);
 
         commit();
         customAlert(`已將「${oldName}」更名為「${newName}」。`);
@@ -1934,6 +2322,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.storageCharacters = Array.isArray(d.storageCharacters) ? d.storageCharacters : [];
                     state.storageAssignments = asObject(d.storageAssignments, {});
                     state.recordName = typeof d.recordName === 'string' ? d.recordName : '';
+                    state.gachaImports = sanitizeGachaImports(d.gachaImports);
+                    state.gachaAccount = typeof d.gachaAccount === 'string' ? d.gachaAccount : '';
 
                     for (const key in state.fruitObtained) {
                         if (Array.isArray(state.fruitObtained[key])) state.fruitObtained[key] = state.fruitObtained[key].map((v) => !!v);
@@ -2147,6 +2537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bindBankAndStorageEvents();
         bindAssignmentEvents();
         bindResetAllEvent();
+        bindGachaImportEvents();
     }
 
 
