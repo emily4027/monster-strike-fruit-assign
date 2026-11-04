@@ -2523,9 +2523,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!state.fruitAssignments[name]) state.fruitAssignments[name] = [];
                     state.fruitAssignments[name][i] = select.value;
                     if (!select.value && state.fruitObtained[name]) state.fruitObtained[name][i] = false;
-                    // 分配改完剛好符合某個組合：自動加上 (或換成) 註記
-                    const tag = detectCharacterTag(name);
-                    const { notice } = tag ? tagCharacter(name, tag) : { notice: '' };
+                    // 依改完的分配加上、換掉或拿掉註記
+                    const tag = expectedCharacterTag(name);
+                    const { notice } = tag !== null ? tagCharacter(name, tag) : { notice: '' };
                     commit();
                     if (notice) customAlert(notice);
                 };
@@ -2596,12 +2596,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return '';
     }
 
-    // 主力角色名稱加上 (或換成) 註記；撞名時不改名，回傳提示
+    // 主力角色名稱加上 (或換成) 註記；tag 為空字串時拿掉註記。撞名時不改名，回傳提示
     function tagCharacter(name, tag) {
-        const tagged = `${stripTag(name)}(${tag})`;
+        const tagged = tag ? `${stripTag(name)}(${tag})` : stripTag(name);
         if (tagged === name) return { name, notice: '' };
         const error = renameCharacterData(name, tagged, 'main');
-        return error ? { name, notice: `已有「${tagged}」，「${name}」沒有加上註記。` } : { name: tagged, notice: '' };
+        if (!error) return { name: tagged, notice: '' };
+        return { name, notice: tag ? `已有「${tagged}」，「${name}」沒有加上註記。` : `已有「${tagged}」，「${name}」的註記沒有拿掉。` };
+    }
+
+    // 依目前分配應該要有的註記 (null 代表判斷不出來，維持原樣)
+    //   符合一種 → 該註記；都不符合 → 不要註記 ('')；符合兩種以上 → 目前的註記在其中就保留，否則維持原樣
+    function expectedCharacterTag(name) {
+        const matches = matchCharacterTags(name);
+        if (matches.length === 1) return matches[0];
+        if (matches.length === 0) return '';
+        const current = tagOf(name).replace(/[\s(（)）]/g, '');
+        return matches.includes(current) ? current : null;
     }
 
     // 依分配判斷註記：
@@ -2609,24 +2620,27 @@ document.addEventListener('DOMContentLoaded', () => {
     //   雙削：分配了將消與兵消
     //   符合兩種以上 (例如同族 2 顆 + 戰型 2 顆) 時判斷不出來，不加註記
     const TYPE_TAGS = ['同族', '戰型', '擊種'];
-    function detectCharacterTag(name) {
+    function matchCharacterTags(name) {
         const fruits = (state.fruitAssignments[name] || []).filter(Boolean);
         const inCategory = (fruit, tag) => (state.fruitCategories[tag] || []).includes(fruit) || fruit.startsWith(tag);
         const matches = TYPE_TAGS.filter((tag) => fruits.filter((f) => inCategory(f, tag)).length >= 2);
         if (fruits.includes('將消') && fruits.includes('兵消')) matches.push('雙削');
-        return matches.length === 1 ? matches[0] : '';
+        return matches;
     }
 
-    // 依分配幫所有主力角色加註記 (已經是正確註記的不動)
+    // 依分配更新所有主力角色的註記：加上、換掉或拿掉
+    //   (還沒分配任何果實的角色不動，避免拿掉預先手動加的註記)
     async function autoTagAllCharacters() {
+        const renamedTo = (name, tag) => (tag ? `${stripTag(name)}(${tag})` : stripTag(name));
         const changes = state.characters
-            .map((name) => ({ name, tag: detectCharacterTag(name) }))
-            .filter(({ name, tag }) => tag && `${stripTag(name)}(${tag})` !== name);
-        if (changes.length === 0) return customAlert('沒有需要加上註記的角色（已加好或分配不符合任何組合）。');
+            .filter((name) => (state.fruitAssignments[name] || []).some(Boolean))
+            .map((name) => ({ name, tag: expectedCharacterTag(name) }))
+            .filter(({ name, tag }) => tag !== null && renamedTo(name, tag) !== name);
+        if (changes.length === 0) return customAlert('所有角色的註記都已經和分配相符。');
 
-        const preview = changes.slice(0, 10).map(({ name, tag }) => `${name} → ${stripTag(name)}(${tag})`).join('\n');
+        const preview = changes.slice(0, 10).map(({ name, tag }) => `${name} → ${renamedTo(name, tag)}`).join('\n');
         const more = changes.length > 10 ? `\n……等 ${changes.length} 個` : '';
-        if (!(await customConfirm(`會幫 ${changes.length} 個角色加上註記：\n${preview}${more}`, '依分配自動加註記'))) return;
+        if (!(await customConfirm(`會更新 ${changes.length} 個角色的註記：\n${preview}${more}`, '依分配自動加註記'))) return;
 
         const notices = [];
         let done = 0;
@@ -2636,7 +2650,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else done++;
         });
         commit();
-        customAlert([`已幫 ${done} 個角色加上註記。`, ...notices].join('\n'), '完成');
+        customAlert([`已更新 ${done} 個角色的註記。`, ...notices].join('\n'), '完成');
     }
 
     async function renameCharacter(oldName, type) {
@@ -2930,7 +2944,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (await customConfirm(`重置「${char}」的分配？`)) {
                 state.fruitAssignments[char] = [];
                 state.fruitObtained[char] = [];
+                const { name, notice } = tagCharacter(char, '');   // 分配清空了，註記也拿掉
                 commit();
+                DOM.presetCharacterSelect.value = name;
+                if (notice) customAlert(notice);
             }
         };
 
