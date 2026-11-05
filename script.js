@@ -137,6 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // =====================================================
     const DOM = {
         mainTitle: $('mainTitle'),
+        undoBtn: $('undoBtn'),
+        redoBtn: $('redoBtn'),
         newCharacter: $('newCharacter'),
         characterCount: $('characterCount'),
 
@@ -286,12 +288,14 @@ document.addEventListener('DOMContentLoaded', () => {
         Array.from({ length: BANK_SLOTS }, (_, i) => (Array.isArray(bank) && bank[i]) || '');
 
     // 將讀到的資料套用到 state (缺少的欄位使用預設值)
-    function applyData(data) {
+    // 換成另一份資料 (載入存檔、雲端更新) 時會清空復原紀錄；復原 / 重做本身用 keepHistory 保留紀錄
+    function applyData(data, { keepHistory = false } = {}) {
         const defaults = createDefaultState();
         DATA_FIELDS.forEach((field) => { state[field] = data[field] || defaults[field]; });
         state.bankAssignments = normalizeBank(state.bankAssignments);
         state.gachaImports = sanitizeGachaImports(state.gachaImports);
         if (typeof state.gachaAccount !== 'string') state.gachaAccount = '';
+        if (!keepHistory) resetHistory();
     }
 
     function updateCloudStatus(status, msg) {
@@ -322,9 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadFromLocalStorage() {
         try {
             state = readLocalSlotData(currentSlot);
+            resetHistory();
             console.log(`[DATA] LocalStorage 載入成功 (Slot: ${currentSlot})`);
         } catch (e) {
-            state = createDefaultState();
+            clearMemoryData();
             console.error('LocalStorage 讀取失敗', e);
         }
     }
@@ -445,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isCurrent) {
             if (cloudData) applyData(cloudData);
-            else state = createDefaultState();   // 這個存檔已在其他裝置刪除或初始化
+            else clearMemoryData();   // 這個存檔已在其他裝置刪除或初始化
             renderAll();
         }
         updateCloudStatus('online', `已載入其他裝置的最新資料 (${getSelectedSlotText()})`);
@@ -482,15 +487,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 資料有變動時一律呼叫：存檔 + 重新渲染
-    function commit() {
+    // 資料有變動時一律呼叫：存檔 + 重新渲染 + 記錄復原步驟
+    // (history: false 用於程式自動補資料，不算一個復原步驟)
+    // 復原紀錄在重新渲染後才記錄，因為渲染時可能會補上一些空欄位
+    function commit({ history = true } = {}) {
         saveData();
         renderAll();
+        if (history) recordHistory();
+        else historyBase = snapshotState();
     }
 
     function clearMemoryData() {
         state = createDefaultState();
+        resetHistory();
     }
+
+    // ---- 復原 / 重做 ----
+    // 每次 commit 前後比對整份資料，有變動就把變動前的樣子存進復原紀錄。
+    // 紀錄只存在這個分頁：重新整理、切換存檔、載入雲端最新資料時清空。
+    const HISTORY_LIMIT = 20;
+    let undoStack = [];
+    let redoStack = [];
+    let historyBase = null;   // 上一次 commit 後的資料 (JSON 字串)
+    let historyBasePending = true;   // 換了資料後，等下一次渲染完再記錄起點
+    const snapshotState = () => JSON.stringify(pickData());
+
+    function updateHistoryButtons() {
+        if (!DOM.undoBtn) return;
+        DOM.undoBtn.disabled = undoStack.length === 0;
+        DOM.redoBtn.disabled = redoStack.length === 0;
+        DOM.undoBtn.title = undoStack.length ? `復原上一步（還可復原 ${undoStack.length} 步，Ctrl+Z）` : '沒有可以復原的操作';
+        DOM.redoBtn.title = redoStack.length ? `重做（還可重做 ${redoStack.length} 步，Ctrl+Y）` : '沒有可以重做的操作';
+    }
+
+    function resetHistory() {
+        undoStack = [];
+        redoStack = [];
+        historyBasePending = true;
+        updateHistoryButtons();
+    }
+
+    // renderAll 最後呼叫：換了資料後，以渲染完的樣子當作復原的起點
+    function settleHistoryBase() {
+        if (!historyBasePending) return;
+        historyBase = snapshotState();
+        historyBasePending = false;
+    }
+
+    function recordHistory() {
+        settleHistoryBase();
+        const now = snapshotState();
+        if (historyBase !== null && now !== historyBase) {
+            undoStack.push(historyBase);
+            if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+            redoStack = [];
+        }
+        historyBase = now;
+        updateHistoryButtons();
+    }
+
+    // 復原：from = undoStack, to = redoStack；重做相反
+    function stepHistory(from, to) {
+        if (from.length === 0 || isCloudLoading) return;
+        recordHistory();   // 先收進還沒 commit 的變動 (例如剛改的存檔名稱)
+        if (from.length === 0) return;
+        to.push(snapshotState());
+        applyData(JSON.parse(from.pop()), { keepHistory: true });
+        saveData();
+        renderAll();
+        historyBase = snapshotState();
+        updateHistoryButtons();
+    }
+    const undo = () => stepHistory(undoStack, redoStack);
+    const redo = () => stepHistory(redoStack, undoStack);
 
     // ---- 存檔槽位 ----
     function renderSlotOptions() {
@@ -1980,7 +2049,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gachaImport.otherAccounts = otherAccounts;
             const recovered = recoverRenamedGachaEntries();
             const dated = backfillGachaLinkDates();
-            if (recovered > 0 || dated > 0) commit();
+            if (recovered > 0 || dated > 0) commit({ history: false });
             DOM.gachaImportSource.textContent = `資料來源：${source}`
                 + (recovered > 0 ? `（${recovered} 隻在抽卡統計改過名字的角色已自動接回）` : '');
         } catch (e) {
@@ -2285,6 +2354,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (DOM.storageCharCount) DOM.storageCharCount.textContent = state.storageCharacters.length;
         if (DOM.uncompletedCharCount) DOM.uncompletedCharCount.textContent = getUncompletedCharacterCount();
+        settleHistoryBase();
     }
 
     function createOverviewItem(fruitName, usageData, totalStock) {
@@ -2775,6 +2845,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newName = await customInput('請輸入此存檔的名稱：', state.recordName);
             if (newName !== null) { // 允許空字串 (清除名稱)
                 state.recordName = newName;
+                recordHistory();
                 saveData();
                 updateTitle();
             }
@@ -2844,6 +2915,121 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- 備份檔 (下載 / 載入) ----
+    // 單一存檔：直接是存檔資料；全部存檔：{ type: ALL_SLOTS_TYPE, exportedAt, slots: [{ name, data }] }
+    const ALL_SLOTS_TYPE = 'fruit_assign_all_slots';
+
+    // 只留下存檔欄位 (去掉雲端的 version / lastUpdated)
+    const pickFields = (data) => {
+        const out = {};
+        DATA_FIELDS.forEach((field) => { if (data[field] !== undefined) out[field] = data[field]; });
+        return out;
+    };
+
+    // 讀取某個存檔的資料：目前存檔用畫面上的最新資料，其他存檔從雲端 / 本機讀
+    async function readSlotData(slot) {
+        if (slot === currentSlot) return pickData();
+        if (isCloudMode && currentUser && db) {
+            const { getDoc } = window.firebaseModules;
+            const snap = await getDoc(getCloudDocRef(currentUser.uid, slot));
+            if (snap.exists()) return pickFields(snap.data());
+        }
+        return readLocalSlotData(slot);
+    }
+
+    async function downloadBackup() {
+        const choice = await customChoice('要下載哪些存檔？', '💾 下載備份', [
+            { value: 'current', label: `只下載目前存檔【${slotLabelOf(currentSlot)}】`, cls: 'btn-green' },
+            { value: 'all', label: `下載全部存檔（${slotList.length} 個）`, cls: 'btn-blue' }
+        ]);
+        if (choice === 'current') {
+            downloadJson(pickData(), `${state.recordName || '果實分配'}_${dateStamp()}.json`);
+        } else if (choice === 'all') {
+            try {
+                const slots = [];
+                for (const id of slotList) slots.push({ name: slotLabelOf(id), data: await readSlotData(id) });
+                downloadJson({ type: ALL_SLOTS_TYPE, exportedAt: new Date().toISOString(), slots }, `果實分配_全部存檔_${dateStamp()}.json`);
+            } catch (e) {
+                console.error('[BACKUP] 讀取存檔失敗', e);
+                customAlert('下載失敗：無法讀取其他存檔的資料，請檢查網路後再試一次。');
+            }
+        }
+    }
+
+    // 把備份檔裡的一份存檔整理成目前的資料格式
+    function normalizeImportedData(d) {
+        const data = createDefaultState();
+        data.characters = Array.isArray(d.characters) ? d.characters : [];
+        data.fruitAssignments = asObject(d.fruitAssignments, {});
+        data.bankAssignments = normalizeBank(d.bankAssignments);
+        data.fruitCategories = asObject(d.fruitCategories, cloneDefaultFruits());
+        data.fruitObtained = asObject(d.fruitObtained, {});
+        data.storageCharacters = Array.isArray(d.storageCharacters) ? d.storageCharacters : [];
+        data.storageAssignments = asObject(d.storageAssignments, {});
+        data.recordName = typeof d.recordName === 'string' ? d.recordName : '';
+        data.gachaImports = sanitizeGachaImports(d.gachaImports);
+        data.gachaAccount = typeof d.gachaAccount === 'string' ? d.gachaAccount : '';
+        for (const key in data.fruitObtained) {
+            if (Array.isArray(data.fruitObtained[key])) data.fruitObtained[key] = data.fruitObtained[key].map((v) => !!v);
+        }
+        return data;
+    }
+
+    // 另存成新存檔：新增存檔後切換過去並寫入資料 (存檔名稱沿用資料裡的紀錄名稱；
+    // 「存檔 2」這種預設名稱不沿用，讓新存檔照順序編號)
+    const isDefaultSlotName = (name) => /^存檔 \d+( \(預設\))?$/.test(name || '');
+    async function importAsNewSlot(data, fallbackName) {
+        if (isDefaultSlotName(fallbackName)) fallbackName = '';
+        const newSlotId = `slot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        slotList.push(newSlotId);
+        await persistSlotList();
+        renderSlotOptions();
+        await changeSlot(newSlotId);
+        applyData({ ...data, recordName: data.recordName || fallbackName || '' });
+        commit();
+    }
+
+    async function importBackup(d, fileName) {
+        // 全部存檔的備份：先選要匯入哪一個
+        let picked = [{ name: '', data: normalizeImportedData(d) }];
+        if (d.type === ALL_SLOTS_TYPE) {
+            const slots = (Array.isArray(d.slots) ? d.slots : []).filter((s) => s && s.data && typeof s.data === 'object');
+            if (slots.length === 0) return customAlert('載入失敗：備份檔裡沒有存檔資料。');
+            const choices = slots.map((s, i) => ({ value: String(i), label: `📁 ${s.name || `存檔 ${i + 1}`}`, cls: 'btn-blue' }));
+            if (slots.length > 1) choices.push({ value: 'all', label: `全部另存成新存檔（${slots.length} 個）`, cls: 'btn-green' });
+            const choice = await customChoice(`「${fileName}」裡有 ${slots.length} 個存檔，要載入哪一個？`, '📂 載入備份', choices);
+            if (choice === null) return;
+            const chosen = choice === 'all' ? slots : [slots[Number(choice)]];
+            picked = chosen.map((s) => ({ name: s.name || '', data: normalizeImportedData(s.data) }));
+        }
+
+        if (picked.length > 1) {
+            for (const { name, data } of picked) await importAsNewSlot(data, name);
+            return customAlert(`已新增 ${picked.length} 個存檔。`);
+        }
+
+        const [{ name, data }] = picked;
+        const slotName = slotLabelOf(currentSlot);
+        const label = data.recordName || name || fileName;
+        const mode = await customChoice(`要怎麼載入「${label}」？`, '📂 載入備份', [
+            { value: 'new', label: '另存成新存檔', cls: 'btn-green' },
+            { value: 'overwrite', label: `覆蓋目前存檔【${slotName}】`, cls: 'btn-red' }
+        ]);
+        if (mode === null) return;
+
+        if (mode === 'new') {
+            await importAsNewSlot(data, name);
+            return customAlert(`已另存成新存檔：${slotLabelOf(currentSlot)}`);
+        }
+
+        // 覆蓋前先把目前的資料下載成備份
+        const current = pickData();
+        downloadJson(current, `${current.recordName || '果實分配'}_覆蓋前備份_${dateStamp(true)}.json`);
+        applyData(data, { keepHistory: true });
+        commit();
+        customAlert(`已載入「${label}」到【${slotName}】。覆蓋前的資料已下載備份，也可以按「↩️ 復原」改回來。`);
+    }
+
     function bindBackupEvents() {
         $('loadData').onclick = () => $('loadFile').click();
 
@@ -2857,38 +3043,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     let result = evt.target.result;
                     if (result.charCodeAt(0) === 0xFEFF) result = result.substr(1);
                     d = JSON.parse(result);
-                    if (!d || typeof d !== 'object') throw new Error('格式錯誤');
+                    if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('格式錯誤');
                 } catch (err) {
                     console.error(err);
                     return customAlert('載入失敗：檔案格式錯誤。');
                 }
-
-                const slotName = getSelectedSlotText();
-                if (!(await customConfirm(`載入「${file.name}」會覆蓋目前存檔【${slotName}】的所有資料，確定嗎？`))) return;
-
                 try {
-
-                    state.characters = Array.isArray(d.characters) ? d.characters : [];
-                    state.fruitAssignments = asObject(d.fruitAssignments, {});
-                    if (d.fruitInventory && typeof d.fruitInventory === 'object' && !d.bankAssignments) {
-                        customAlert('偵測到舊版庫存資料，已嘗試自動轉換至新版 BANK 介面。');
-                        state.bankAssignments = Array(BANK_SLOTS).fill('');
-                    } else {
-                        state.bankAssignments = normalizeBank(d.bankAssignments);
-                    }
-                    state.fruitCategories = asObject(d.fruitCategories, cloneDefaultFruits());
-                    state.fruitObtained = asObject(d.fruitObtained, {});
-                    state.storageCharacters = Array.isArray(d.storageCharacters) ? d.storageCharacters : [];
-                    state.storageAssignments = asObject(d.storageAssignments, {});
-                    state.recordName = typeof d.recordName === 'string' ? d.recordName : '';
-                    state.gachaImports = sanitizeGachaImports(d.gachaImports);
-                    state.gachaAccount = typeof d.gachaAccount === 'string' ? d.gachaAccount : '';
-
-                    for (const key in state.fruitObtained) {
-                        if (Array.isArray(state.fruitObtained[key])) state.fruitObtained[key] = state.fruitObtained[key].map((v) => !!v);
-                    }
-                    commit();
-                    customAlert(`成功載入：${state.recordName || '未命名紀錄'}`);
+                    await importBackup(d, file.name);
                 } catch (err) {
                     console.error(err);
                     customAlert('載入失敗：檔案格式錯誤。');
@@ -2898,9 +3059,23 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.value = '';
         };
 
-        $('saveData').onclick = () => {
-            downloadJson(pickData(), `${state.recordName || '果實分配'}_${dateStamp()}.json`);
-        };
+        $('saveData').onclick = downloadBackup;
+    }
+
+    function bindHistoryEvents() {
+        DOM.undoBtn.onclick = undo;
+        DOM.redoBtn.onclick = redo;
+        // Ctrl+Z 復原、Ctrl+Y / Ctrl+Shift+Z 重做 (輸入框裡或有視窗開著時不處理)
+        document.addEventListener('keydown', (e) => {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+            if (document.querySelector('.modal.show')) return;
+            const key = e.key.toLowerCase();
+            if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+            else if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+        });
+        updateHistoryButtons();
     }
 
     function bindCharacterEvents() {
@@ -3103,6 +3278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bindModalEvents();
         bindTabEvents();
         bindBackupEvents();
+        bindHistoryEvents();
         bindCharacterEvents();
         bindFruitEvents();
         bindBankAndStorageEvents();

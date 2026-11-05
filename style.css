@@ -80,6 +80,29 @@ h3 { margin: 0; font-size: 18px; font-weight: bold; }
     color: white;
 }
 
+/* 懸浮的復原 / 重做按鈕 (GitHub 按鈕上方) */
+.history-controls {
+    position: fixed;
+    bottom: 80px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 9999;
+}
+.history-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background-color: #343a40;
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.history-btn:hover:not(:disabled) { background-color: #495057; }
+.history-btn:disabled { opacity: 0.35; cursor: default; }
+
 /* [新增] GitHub 連結按鈕樣式 */
 #github-link {
     position: fixed;
@@ -602,6 +625,11 @@ tr.row-completed td:first-child {
     .toolbox-container {
         bottom: 15px;
         right: 15px;
+    }
+
+    .history-controls {
+        bottom: 65px;
+        left: 15px;
     }
 
     /* 手機版調整 GitHub 按鈕位置 */
