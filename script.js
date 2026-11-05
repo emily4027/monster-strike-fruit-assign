@@ -208,6 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
         gachaImportSource: $('gachaImportSource'),
         gachaAccountSelect: $('gachaAccountSelect'),
         gachaShowDate: $('gachaShowDate'),
+        gachaChangeAccountBtn: $('gachaChangeAccountBtn'),
+        gachaImportTarget: $('gachaImportTarget'),
         gachaImportList: $('gachaImportList'),
         confirmGachaImportBtn: $('confirmGachaImportBtn'),
 
@@ -1455,7 +1457,10 @@ document.addEventListener('DOMContentLoaded', () => {
     //   對應到已有角色 / 丟進垃圾桶 / 先不處理。處理結果記在 state.gachaImports，
     //   所以已處理的角色不會再出現在「待處理」。
     // =====================================================
-    const gachaImport = { records: [], account: '', tab: 'pending', pending: [], imported: [], trashed: [], checkedRids: new Set() };
+    const gachaImport = {
+        records: [], account: '', previousAccount: '', locked: false, otherAccounts: new Map(),
+        tab: 'pending', pending: [], imported: [], trashed: [], checkedRids: new Set()
+    };
 
     const charList = (type) => (type === 'storage' ? state.storageCharacters : state.characters);
     const linkKey = (t, n) => `${t}|${n}`;
@@ -1883,18 +1888,84 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
+    // ---- 存檔綁定抽卡帳號 ----
+    //   每個存檔的 state.gachaAccount 就是它綁定的抽卡帳號 (第一次匯入時綁定)；
+    //   打開匯入視窗時直接使用綁定的帳號，要換帳號得按「更換帳號」。
+    const slotLabelOf = (slot) => {
+        const option = [...DOM.saveSlotSelect.options].find((o) => o.value === slot);
+        return option ? option.text.replace(/^📁\s*/, '') : slot;
+    };
+
+    // 其他存檔綁定的抽卡帳號：帳號 → [存檔名稱]
+    async function loadOtherSlotAccounts() {
+        const result = new Map();
+        const others = slotList.filter((id) => id !== currentSlot);
+        const useCloud = isCloudMode && currentUser && db;
+        await Promise.all(others.map(async (id) => {
+            let account = '';
+            try {
+                if (useCloud) {
+                    const { getDoc } = window.firebaseModules;
+                    const snap = await getDoc(getCloudDocRef(currentUser.uid, id));
+                    account = snap.exists() ? snap.data().gachaAccount : '';
+                } else {
+                    account = readJson(localKeyFor(id, 'gachaAccount'), '');
+                }
+            } catch (e) {
+                console.warn('[GACHA] 讀取其他存檔的綁定帳號失敗', id, e);
+            }
+            if (typeof account === 'string' && account) {
+                if (!result.has(account)) result.set(account, []);
+                result.get(account).push(slotLabelOf(id));
+            }
+        }));
+        return result;
+    }
+
     function renderGachaAccounts() {
         const counts = new Map();
         gachaImport.records.forEach((r) => counts.set(r.account, (counts.get(r.account) || 0) + 1));
         const accounts = [...counts.keys()];
+        const usedBy = gachaImport.otherAccounts;
         DOM.gachaAccountSelect.innerHTML = '';
-        accounts.forEach((a) => addOption(DOM.gachaAccountSelect, a, `${a} (${counts.get(a)} 筆)`));
-        // 這個存檔上次選的帳號；第一次用時選紀錄最多的帳號
-        gachaImport.account = accounts.includes(state.gachaAccount)
-            ? state.gachaAccount
-            : [...counts].sort((a, b) => b[1] - a[1]).map(([a]) => a)[0] || '';
+        accounts.forEach((a) => {
+            const others = usedBy.get(a);
+            addOption(DOM.gachaAccountSelect, a, `${a} (${counts.get(a)} 筆)${others ? `（${others.join('、')} 使用中）` : ''}`);
+        });
+
+        const bound = state.gachaAccount;
+        gachaImport.locked = !!bound && accounts.includes(bound);
+        if (gachaImport.locked) {
+            gachaImport.account = bound;
+        } else {
+            // 還沒綁定 (或綁定的帳號已不存在)：優先選其他存檔沒在用、紀錄最多的帳號
+            const byCount = [...counts].sort((a, b) => b[1] - a[1]).map(([a]) => a);
+            gachaImport.account = byCount.find((a) => !usedBy.has(a)) || byCount[0] || '';
+        }
         DOM.gachaAccountSelect.value = gachaImport.account;
-        DOM.gachaAccountSelect.disabled = accounts.length === 0;
+        gachaImport.previousAccount = gachaImport.account;
+        updateGachaAccountLock(accounts.length > 0);
+
+        const slotName = getSelectedSlotText(currentSlot).replace(/^📁\s*/, '');
+        let note = `匯入到：📁 ${slotName}`;
+        if (gachaImport.locked) note += `（綁定抽卡帳號「${bound}」）`;
+        else if (bound) note += `（原本綁定的「${bound}」在抽卡紀錄中找不到，請重新選擇）`;
+        else note += '（第一次匯入時會綁定目前選的抽卡帳號）';
+        DOM.gachaImportTarget.textContent = note;
+    }
+
+    function updateGachaAccountLock(hasAccounts) {
+        DOM.gachaAccountSelect.disabled = !hasAccounts || gachaImport.locked;
+        DOM.gachaChangeAccountBtn.style.display = hasAccounts && gachaImport.locked ? '' : 'none';
+    }
+
+    function switchGachaAccount(account) {
+        gachaImport.account = account;
+        gachaImport.previousAccount = account;
+        gachaImport.openMonths = null;   // 換帳號時只展開最新的月份
+        gachaImport.checkedRids.clear();
+        buildGachaRows();
+        renderGachaImport();
     }
 
     async function openGachaImport() {
@@ -1904,8 +1975,9 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.confirmGachaImportBtn.style.display = 'none';
         toggleModal(DOM.gachaImportModal, true);
         try {
-            const { records, source } = await loadGachaRecords();
+            const [{ records, source }, otherAccounts] = await Promise.all([loadGachaRecords(), loadOtherSlotAccounts()]);
             gachaImport.records = records;
+            gachaImport.otherAccounts = otherAccounts;
             const recovered = recoverRenamedGachaEntries();
             const dated = backfillGachaLinkDates();
             if (recovered > 0 || dated > 0) commit();
@@ -2010,8 +2082,9 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.filter((row) => row.rename !== 'gacha').forEach(applyRow);
         rows.filter((row) => row.rename === 'gacha').forEach(applyRow);
 
-        state.gachaAccount = gachaImport.account;
+        state.gachaAccount = gachaImport.account;   // 匯入後這個存檔就綁定這個抽卡帳號
         commit();
+        renderGachaAccounts();
         buildGachaRows();
         renderGachaImport();
 
@@ -2033,12 +2106,35 @@ document.addEventListener('DOMContentLoaded', () => {
             renderGachaImport();
         };
 
-        DOM.gachaAccountSelect.onchange = () => {
-            gachaImport.account = DOM.gachaAccountSelect.value;
-            gachaImport.openMonths = null;   // 換帳號時只展開最新的月份
-            gachaImport.checkedRids.clear();
-            buildGachaRows();
-            renderGachaImport();
+        DOM.gachaAccountSelect.onchange = async () => {
+            const account = DOM.gachaAccountSelect.value;
+            // 選到其他存檔在用的帳號：提醒會匯入到目前的存檔
+            const others = (gachaImport.otherAccounts.get(account) || []).map((n) => `「${n}」`);
+            if (!others.length) return switchGachaAccount(account);
+
+            const slotName = getSelectedSlotText(currentSlot).replace(/^📁\s*/, '');
+            const ok = await customConfirm(
+                `「${account}」是${others.join('、')}在用的抽卡帳號，匯入的角色會存到目前的「${slotName}」，不會存到${others.join('、')}。確定要用這個帳號嗎？`,
+                '這個帳號在其他存檔使用中'
+            );
+            if (!ok) {
+                DOM.gachaAccountSelect.value = gachaImport.previousAccount;
+                return;
+            }
+            switchGachaAccount(account);
+        };
+
+        DOM.gachaChangeAccountBtn.onclick = async () => {
+            const slotName = getSelectedSlotText(currentSlot).replace(/^📁\s*/, '');
+            const ok = await customConfirm(
+                `「${slotName}」目前綁定抽卡帳號「${state.gachaAccount}」。要更換嗎？\n（已經匯入的角色不會被移除；換成新帳號並匯入後，就會綁定新帳號）`,
+                '更換抽卡帳號'
+            );
+            if (!ok) return;
+            gachaImport.locked = false;
+            updateGachaAccountLock(true);
+            DOM.gachaImportTarget.textContent = `匯入到：📁 ${slotName}（更換帳號中：選好新帳號並匯入後，就會改綁定新帳號）`;
+            DOM.gachaAccountSelect.focus();
         };
 
         document.querySelectorAll('.gi-tab').forEach((btn) => {

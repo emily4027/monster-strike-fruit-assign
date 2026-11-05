@@ -661,3 +661,4 @@ label.gi-group-title { display: flex; align-items: center; gap: 6px; cursor: poi
 #confirmMessage { white-space: pre-line; }
 /* 批次按鈕固定在清單最上方，往下捲動時不會消失 */
 .gi-bulk { position: sticky; top: 0; z-index: 2; background: white; padding: 6px 0; margin-bottom: 8px; border-bottom: 1px solid #eee; }
+.gi-target { font-size: 13px; font-weight: bold; color: #1d3f72; margin: -4px 0 10px; }
