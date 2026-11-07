@@ -34,6 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const SLOT_LIST_DOC = 'fruit_slots';                     // 雲端：所有裝置共用的存檔清單
     const SLOT_LIST_CACHE_PREFIX = 'fruit_slot_list_cache_'; // sessionStorage：雲端存檔清單快取
 
+    // 懸浮工具箱：工具清單讀取工具箱的 tools.js (window.MS_TOOLS)，讀不到時保留 index.html 裡寫死的連結
+    const TOOLBOX_TOOLS_URL = 'https://emily4027.github.io/monster-strike-toolbox/tools.js';
+    const THIS_TOOL_ID = 'fruit';   // 對應 tools.js 裡這個工具的 id
+
     const defaultFruits = {
         "同族": ["同族加擊", "同族加命擊", "同族加擊速"],
         "戰型": ["戰型加擊", "戰型加命擊", "戰型加擊速"],
@@ -3304,9 +3308,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // 懸浮工具箱：載入工具箱的 tools.js 後重建工具連結。
+    // 用動態載入，不擋住頁面啟動；讀不到或格式不對就維持 index.html 裡的連結
+    function renderToolboxMenu() {
+        const list = document.querySelector('.toolbox-list');
+        const tools = Array.isArray(window.MS_TOOLS) ? window.MS_TOOLS : [];
+        const valid = tools.filter((t) => t && typeof t.name === 'string' && t.name
+            && typeof t.url === 'string' && /^https:\/\//.test(t.url));
+        if (!list || valid.length === 0) return;
+
+        const home = list.querySelector('.toolbox-home');
+        const links = valid.map((t) => {
+            const label = escapeHtml((typeof t.emoji === 'string' ? `${t.emoji} ` : '') + t.name);
+            return t.id === THIS_TOOL_ID
+                ? `<div class="toolbox-link active">${label}</div>`
+                : `<a href="${escapeHtml(t.url)}" class="toolbox-link">${label}</a>`;
+        }).join('');
+        list.innerHTML = (home ? home.outerHTML : '') + links;
+    }
+
+    function loadToolboxMenu() {
+        const script = document.createElement('script');
+        script.src = TOOLBOX_TOOLS_URL;
+        script.async = true;
+        script.onload = renderToolboxMenu;
+        script.onerror = () => console.warn('[TOOLBOX] 讀不到工具箱的 tools.js，使用內建連結');
+        document.head.appendChild(script);
+    }
+
+
     // =====================================================
     // 啟動
     // =====================================================
     bindEvents();
+    loadToolboxMenu();
     initApp();
 });

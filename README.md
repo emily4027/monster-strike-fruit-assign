@@ -124,6 +124,7 @@ python -m http.server 8000     # 然後開啟 http://localhost:8000
 - **sessionStorage 快取**：雲端資料依「帳號 + 存檔」分開快取（`fruit_data_cache_<uid>_<存檔ID>`），雲端存檔清單快取為 `fruit_slot_list_cache_<uid>`，登出時會清除；雲端載入期間不會寫入雲端，以雲端資料為準。
 - **雲端版本檢查**：雲端文件都有 `version`（每次寫入 + 1）與 `lastUpdated`。寫入都在 `runTransaction` 中先比對兩者是否和上次讀到 / 寫入的相同（`slotDocBase`、`slotListBase`），不同就代表其他裝置改過：存檔資料走 `handleSaveConflict()`（下載備份 + 重新載入），存檔清單走 `mergeSlotLists()`（三方合併）。新增寫入雲端的地方請沿用 `writeToCloud()` / `writeSlotListToCloud()`，不要直接 `setDoc`。
 - **從抽卡統計匯入**：讀取抽卡統計的雲端文件 `artifacts/{appId}/users/{uid}/data/gacha_records`（`records` 陣列）或 localStorage `gachaRecords`，使用欄位 `id`、`account`、`date`、`event`、`notes`（「虹夏*3、麒麟兒」格式）、`tag`（`orb` 略過）；設定在檔案開頭的 `GACHA_*` 常數。**抽卡統計改了這些路徑或欄位時，這邊要一起改。** 統一名字時會改寫抽卡統計雲端紀錄的 `notes`（`renameInGachaCloud()`：transaction 讀最新資料、只替換該角色名稱、`version` + 1、`merge: true`），抽卡統計存檔時的三方合併會接收這個修改。 匯入狀態存在存檔欄位 `gachaImports`（`[{ rid, name, linked: [{ n, t }], trashed }]`）與 `gachaAccount`。
+- **懸浮工具箱**：工具連結在啟動時從工具箱的 `tools.js`（`window.MS_TOOLS`，網址為 `TOOLBOX_TOOLS_URL`）載入，`THIS_TOOL_ID`（`fruit`）標示目前頁面；讀不到時保留 `index.html` 裡寫死的連結（`.toolbox-home` 的首頁連結一律保留）。新增工具只要改工具箱的 `tools.js`。
 - **存檔清單的來源**：`slotList` 登入時是雲端清單，未登入時是本機清單；新增、刪除、改名都透過 `persistSlotList()` 寫回對應的地方。
 
 ---
