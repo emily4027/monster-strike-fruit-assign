@@ -232,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isCloudLoading = false;   // 讀取雲端資料期間不寫入雲端，避免舊資料覆蓋雲端
     let hasSaveDuringLoad = false;
     let saveTimeout = null;
+    let savePending = false;   // 有修改還沒送到雲端 (排定中的儲存)
     let envAppId = 'default-app-id';
 
     // 存檔槽位
@@ -414,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (result.conflict) return { conflict: true, slot, cloudData: result.cloudData, mine };
-        rememberSlotDoc(slot, result.dataToSave);
+        if (slot === currentSlot) rememberSlotDoc(slot, result.dataToSave);   // 寫完前已切換存檔時，不蓋掉新存檔的版本紀錄
         cacheCloudData(uid, result.dataToSave, slot);
         return { conflict: false };
     }
@@ -437,14 +438,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 存檔衝突：先把這台剛才的版本下載成備份，再重新載入雲端的最新資料
     function handleSaveConflict({ slot, cloudData, mine }, { backup = true, message } = {}) {
-        clearTimeout(saveTimeout);
+        cancelPendingSave();
         const isCurrent = slot === currentSlot;
         if (backup) {
             const myData = isCurrent ? pickData() : mine;   // 包含存檔送出後才做的修改
             downloadJson(myData, `${myData.recordName || '果實分配'}_衝突備份_${dateStamp(true)}.json`);
         }
 
-        rememberSlotDoc(slot, cloudData);
+        if (isCurrent) rememberSlotDoc(slot, cloudData);
         if (cloudData) cacheCloudData(currentUser.uid, cloudData, slot);
         else sessionStorage.removeItem(getDataCacheKey(currentUser.uid, slot));
 
@@ -467,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const performSave = async () => {
+                savePending = false;
                 try {
                     updateCloudStatus('saving', `儲存中 (${getSelectedSlotText(currentSlot)})...`);
                     const result = await writeToCloud();
@@ -480,11 +482,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             clearTimeout(saveTimeout);
             if (isImmediate) await performSave();
-            else saveTimeout = setTimeout(performSave, 1000);
+            else {
+                savePending = true;
+                saveTimeout = setTimeout(performSave, 1000);
+            }
         } else {
             saveToLocalStorage();
             if (!isCloudMode) updateCloudStatus('offline', `離線模式: ${currentSlot}`);
         }
+    }
+
+    // 切換存檔 / 登出前：只有還沒送出的修改才立刻存
+    // (沒有修改時不寫入，避免版本號 + 1 讓其他分頁 / 裝置以為資料被改過而跳出衝突)
+    async function flushPendingSave() {
+        if (savePending) await saveData(true);
+    }
+
+    function cancelPendingSave() {
+        clearTimeout(saveTimeout);
+        savePending = false;
     }
 
     // 資料有變動時一律呼叫：存檔 + 重新渲染 + 記錄復原步驟
@@ -762,8 +778,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function changeSlot(newSlot, { skipSave = false } = {}) {
         // 1. 先儲存當前進度 (強制立即執行並等待完成；刪除存檔後切換時不再存回被刪除的存檔)
-        if (skipSave) clearTimeout(saveTimeout);
-        else await saveData(true);
+        if (skipSave) cancelPendingSave();
+        else await flushPendingSave();
 
         updateCloudStatus('saving', '切換存檔中...');
 
@@ -835,7 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
             );
             if (!ok) return;
 
-            clearTimeout(saveTimeout);   // 避免尚未送出的儲存在刪除後又把資料寫回雲端
+            cancelPendingSave();   // 避免尚未送出的儲存在刪除後又把資料寫回雲端
             try {
                 const { deleteDoc } = window.firebaseModules;
                 await deleteDoc(getCloudDocRef(currentUser.uid, deletedSlot));
@@ -977,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 未登入 / 登出：畫面上的雲端資料一律換回這台電腦的本機 (離線) 資料
     function handleUserLogout() {
-        clearTimeout(saveTimeout);
+        cancelPendingSave();
         currentUser = null;
         isCloudMode = false;
         isCloudLoading = false;
@@ -2857,7 +2873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!auth || !signOut) return location.reload();
                 try {
                     // 登出前先送出尚未儲存的變更 (登出後畫面會換回本機資料)
-                    if (saveTimeout) await saveData(true);
+                    await flushPendingSave();
                     await signOut(auth);
                     sessionStorage.removeItem(USER_CACHE_KEY);
                     customAlert('已成功登出，畫面已切換為這台電腦的本機資料。', '登出');
@@ -3249,7 +3265,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 雲端模式：以空資料覆蓋雲端文件
             let cloudFailed = false;
             if (isCloudMode && currentUser && db) {
-                clearTimeout(saveTimeout);   // 取消尚未送出的儲存，避免舊資料在清空後又寫回雲端
+                cancelPendingSave();   // 取消尚未送出的儲存，避免舊資料在清空後又寫回雲端
                 try {
                     const result = await writeToCloud();
                     if (result.conflict) {
