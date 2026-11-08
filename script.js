@@ -1817,6 +1817,78 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- 角色圖鑑的名稱修正 (Firestore shared/characters，管理員維護，所有人可讀) ----
+    // 抽卡統計打開時會把紀錄裡寫錯的名稱改成正確名稱。這裡讀同一份修正：
+    //   1. 讀到的抽卡紀錄先在記憶體裡套用修正 (抽卡統計還沒改到的紀錄也一樣)
+    //   2. 匯入狀態 gachaImports 的名稱跟著改，已對應的角色不會被當成新角色再匯入一次
+    // 名稱解析規則要和角色圖鑑 pools.js 的 resolveName、抽卡統計 notes.js 的 renameCharacters 一致。
+    const CHARACTER_FIXES_DOC = ['shared', 'characters'];
+    const GACHA_NAME_SUFFIX_RE = /^(.*?)((?:-\d+)?(?:\s*[(（](?:同族|戰型|擊種|雙削)[)）])?)$/;
+
+    async function loadCharacterRenames() {
+        const renames = new Map();
+        try {
+            if (!db) return renames;
+            const { doc, getDoc } = window.firebaseModules;
+            const snap = await getDoc(doc(db, ...CHARACTER_FIXES_DOC));
+            const list = snap.exists() && Array.isArray(snap.data().renames) ? snap.data().renames : [];
+            list.forEach((r) => {
+                const from = r && typeof r.from === 'string' ? r.from.trim() : '';
+                const to = r && typeof r.to === 'string' ? r.to.trim() : '';
+                if (from && to && from !== to) renames.set(from, to);
+            });
+        } catch (e) {
+            console.warn('[GACHA] 讀不到角色名稱修正，照抽卡紀錄原樣匯入', e);
+        }
+        return renames;
+    }
+
+    // 名稱 → 修正後的名稱 (可以連續修正；繞回自己時不改)，保留同名編號與註記，空白拿掉
+    function fixGachaName(renames, name) {
+        const m = String(name).match(GACHA_NAME_SUFFIX_RE);
+        const base = m ? m[1].trim() : String(name);
+        let current = base;
+        const seen = new Set([current]);
+        while (renames.has(current)) {
+            const next = renames.get(current);
+            if (seen.has(next)) return name;
+            seen.add(next);
+            current = next;
+        }
+        const to = current.replace(/\s+/g, '');
+        return to === base ? name : to + (m ? m[2].trim() : '');
+    }
+
+    function applyCharacterRenames(records, renames) {
+        if (renames.size === 0) return records;
+        return records.map((r) => {
+            if (typeof r.notes !== 'string') return r;
+            const notes = String(r.notes).split(/([,，、\s+]+)/).map((part, i) => {
+                if (i % 2 === 1 || !part || GACHA_NOT_CHARACTER.test(part)) return part;
+                const m = part.match(/^(.+?)((?:[ *xX×]+\d+[隻體]?|\d+[隻體])?)$/);
+                if (!m) return part;
+                const lead = !m[2] && m[1].match(/^(\d+)(\D{2,}.*)$/);
+                const prefix = lead ? lead[1] : '';
+                const name = (lead ? lead[2] : m[1]).trim();
+                const fixed = fixGachaName(renames, name);
+                return fixed === name ? part : `${prefix}${fixed}${m[2]}`;
+            }).join('');
+            return notes === r.notes ? r : { ...r, notes };
+        });
+    }
+
+    // 匯入狀態的名稱跟著修正 (同一筆紀錄已有新名稱的狀態時合併)，回傳改了幾種名稱
+    function renameGachaEntriesByFixes(renames) {
+        if (renames.size === 0) return 0;
+        const pairs = new Map();
+        state.gachaImports.forEach((entry) => {
+            const fixed = fixGachaName(renames, entry.name);
+            if (fixed !== entry.name) pairs.set(entry.name, fixed);
+        });
+        pairs.forEach((to, from) => renameGachaEntries(from, to));
+        return pairs.size;
+    }
+
     // 對應時記下抽卡紀錄的日期 (排序用)；舊版對應的沒有日期、或抽卡統計改了日期時補上
     function backfillGachaLinkDates() {
         const dateByRid = new Map(gachaImport.records.map((r) => [String(r.id), r.date || '']));
@@ -2064,12 +2136,13 @@ document.addEventListener('DOMContentLoaded', () => {
         DOM.confirmGachaImportBtn.style.display = 'none';
         toggleModal(DOM.gachaImportModal, true);
         try {
-            const [{ records, source }, otherAccounts] = await Promise.all([loadGachaRecords(), loadOtherSlotAccounts()]);
-            gachaImport.records = records;
+            const [{ records, source }, otherAccounts, renames] = await Promise.all([loadGachaRecords(), loadOtherSlotAccounts(), loadCharacterRenames()]);
+            gachaImport.records = applyCharacterRenames(records, renames);
             gachaImport.otherAccounts = otherAccounts;
+            const fixed = renameGachaEntriesByFixes(renames);
             const recovered = recoverRenamedGachaEntries();
             const dated = backfillGachaLinkDates();
-            if (recovered > 0 || dated > 0) commit({ history: false });
+            if (fixed > 0 || recovered > 0 || dated > 0) commit({ history: false });
             DOM.gachaImportSource.textContent = `資料來源：${source}`
                 + (recovered > 0 ? `（${recovered} 隻在抽卡統計改過名字的角色已自動接回）` : '');
         } catch (e) {
