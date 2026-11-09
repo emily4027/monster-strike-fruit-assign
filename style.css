@@ -11,6 +11,20 @@ body {
 
 /* --- 標題 --- */
 h1 { text-align: center; font-size: 28px; margin-bottom: 20px; color: #333; }
+/* 抽卡統計的附屬工具 (轉蛋資料庫) 的入口 */
+.companion-link-wrap { text-align: center; margin: -10px 0 14px; }
+.companion-link {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: #fff3e0;
+    color: #c25700;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+}
+.companion-link:hover { background: #ffe0b2; color: #a84a00; }
 h2 { text-align: center; font-size: 20px; margin-bottom: 20px; color: #333; font-weight: bold; }
 h3 { margin: 0; font-size: 18px; font-weight: bold; }
 
