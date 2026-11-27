@@ -37,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const SLOT_LIST_CACHE_PREFIX = 'fruit_slot_list_cache_'; // sessionStorage：雲端存檔清單快取
 
     // 懸浮工具箱：工具清單讀取工具箱的 tools.js (window.MS_TOOLS)，讀不到時保留 index.html 裡寫死的連結
-    const TOOLBOX_TOOLS_URL = 'https://emily4027.github.io/monster-strike-toolbox/tools.js';
     const THIS_TOOL_ID = 'fruit';   // 對應 tools.js 裡這個工具的 id
 
     const defaultFruits = {
@@ -286,6 +285,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const getLocalKey = (key) => localKeyFor(currentSlot, key);
     const getSaveDocName = (slot = currentSlot) => (slot === 'default' ? 'fruit_assign' : `fruit_assign_${slot}`);
 
+    // Firestore 路徑：優先用工具箱共用的 MSShared.PATHS；shared.js 沒載入時退回原字串（結果相同）
+    const sharedPaths = () => (window.MSShared && window.MSShared.PATHS) || null;
+    const fruitSavePath = (uid, slot) => (sharedPaths()
+        ? sharedPaths().fruitSave(envAppId, uid, slot)
+        : ['artifacts', envAppId, 'users', uid, 'fruit_data', getSaveDocName(slot)]);
+    const fruitSlotListPath = (uid) => (sharedPaths()
+        ? sharedPaths().fruitSlotList(envAppId, uid)
+        : ['artifacts', envAppId, 'users', uid, 'fruit_data', SLOT_LIST_DOC]);
+    const gachaRecordsPath = (uid) => (sharedPaths()
+        ? sharedPaths().gachaRecords(envAppId, uid)
+        : ['artifacts', envAppId, 'users', uid, ...GACHA_CLOUD_DOC]);
+    const sharedCharactersPath = () => (sharedPaths() ? sharedPaths().sharedCharacters : CHARACTER_FIXES_DOC);
+
     // 存檔名稱：依目前清單來源讀寫 (雲端清單的名稱有變動時會寫回雲端)
     const getSlotNameCache = () => (slotSource === 'cloud' ? { ...cloudSlotNames } : readJson(LOCAL_SLOT_NAMES_KEY, {}));
     function setSlotNameCache(cache) {
@@ -383,12 +395,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- 雲端 ----
     const getCloudDocRef = (uid, slot = currentSlot) => {
         const { doc } = window.firebaseModules;
-        return doc(db, 'artifacts', envAppId, 'users', uid, 'fruit_data', getSaveDocName(slot));
+        return doc(db, ...fruitSavePath(uid, slot));
     };
 
     const getSlotListDocRef = (uid) => {
         const { doc } = window.firebaseModules;
-        return doc(db, 'artifacts', envAppId, 'users', uid, 'fruit_data', SLOT_LIST_DOC);
+        return doc(db, ...fruitSlotListPath(uid));
     };
 
     // 雲端資料快取 (每個存檔槽位分開存，避免重新整理後套用到別的存檔)
@@ -1061,19 +1073,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 等待 Firebase SDK 載入 (Polling)
-    function waitForFirebase(retries = 0) {
-        if (window.firebaseApp && window.firebaseAuth) {
-            setupAuthListener();
-        } else if (retries < 50) {
-            setTimeout(() => waitForFirebase(retries + 1), 100);
-        } else {
+    // 沒載入 shared.js 時退回簡單輪詢 (100ms × 50 次 = 5 秒)
+    function waitForFirebase() {
+        const ready = () => !!(window.firebaseApp && window.firebaseAuth);
+        const wait = window.MSShared && window.MSShared.waitFor
+            ? window.MSShared.waitFor(ready, { interval: 100, timeout: 5000 })
+            : new Promise((resolve) => {
+                let retries = 0;
+                const tick = () => {
+                    if (ready()) return resolve(true);
+                    if (retries >= 50) return resolve(false);
+                    retries += 1;
+                    setTimeout(tick, 100);
+                };
+                tick();
+            });
+        wait.then((ok) => {
+            if (ok) {
+                setupAuthListener();
+                return;
+            }
             console.warn('[INIT] Firebase SDK 載入超時，降級為離線模式');
             if (state.characters.length === 0) {
                 loadFromLocalStorage();
                 renderAll();
                 updateTitle();
             }
-        }
+        });
     }
 
     function initApp() {
@@ -1635,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let source;
         if (isCloudMode && currentUser && db) {
             const { doc, getDoc } = window.firebaseModules;
-            const snap = await getDoc(doc(db, 'artifacts', envAppId, 'users', currentUser.uid, ...GACHA_CLOUD_DOC));
+            const snap = await getDoc(doc(db, ...gachaRecordsPath(currentUser.uid)));
             list = snap.exists() ? snap.data().records : [];
             source = '抽卡統計的雲端紀錄（已登入）';
         } else {
@@ -1812,7 +1838,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const gachaCloudRef = () => {
         const { doc } = window.firebaseModules;
-        return doc(db, 'artifacts', envAppId, 'users', currentUser.uid, ...GACHA_CLOUD_DOC);
+        return doc(db, ...gachaRecordsPath(currentUser.uid));
     };
 
     // 改寫抽卡統計的雲端紀錄：所有帳號中寫成 oldName 的角色都改成 newName。
@@ -1867,7 +1893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             if (!db) return null;
             const { doc, getDoc } = window.firebaseModules;
-            const snap = await getDoc(doc(db, ...CHARACTER_FIXES_DOC));
+            const snap = await getDoc(doc(db, ...sharedCharactersPath()));
             return window.CharacterPools.readNameFixes(snap.exists() ? snap.data() : null);
         } catch (e) {
             console.warn('[GACHA] 讀不到角色名稱修正，照抽卡紀錄原樣匯入', e);
@@ -3411,32 +3437,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // 懸浮工具箱：載入工具箱的 tools.js 後重建工具連結。
-    // 用動態載入，不擋住頁面啟動；讀不到或格式不對就維持 index.html 裡的連結
-    function renderToolboxMenu() {
-        const list = document.querySelector('.toolbox-list');
-        const tools = Array.isArray(window.MS_TOOLS) ? window.MS_TOOLS : [];
-        const valid = tools.filter((t) => t && typeof t.name === 'string' && t.name
-            && typeof t.url === 'string' && /^https:\/\//.test(t.url));
-        if (!list || valid.length === 0) return;
-
-        const home = list.querySelector('.toolbox-home');
-        const links = valid.map((t) => {
-            const label = escapeHtml((typeof t.emoji === 'string' ? `${t.emoji} ` : '') + t.name);
-            return t.id === THIS_TOOL_ID
-                ? `<div class="toolbox-link active">${label}</div>`
-                : `<a href="${escapeHtml(t.url)}" class="toolbox-link">${label}</a>`;
-        }).join('');
-        list.innerHTML = (home ? home.outerHTML : '') + links;
-    }
-
+    // 懸浮工具箱：由共用的 MSShared.loadToolboxMenu 動態載入工具箱 tools.js 後重建連結。
+    // shared.js 沒載入或 tools.js 讀不到時，維持 index.html 裡的連結
     function loadToolboxMenu() {
-        const script = document.createElement('script');
-        script.src = TOOLBOX_TOOLS_URL;
-        script.async = true;
-        script.onload = renderToolboxMenu;
-        script.onerror = () => console.warn('[TOOLBOX] 讀不到工具箱的 tools.js，使用內建連結');
-        document.head.appendChild(script);
+        if (window.MSShared && window.MSShared.loadToolboxMenu) {
+            window.MSShared.loadToolboxMenu(THIS_TOOL_ID);
+        } else {
+            console.warn('[TOOLBOX] 共用 shared.js 沒載入，使用內建連結');
+        }
     }
 
 

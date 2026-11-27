@@ -3,6 +3,16 @@
 本專案所有重大變更都會記錄於此文件。
 格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)。
 
+## [1.10.4] - 未發布
+
+### 變更 (Changed)
+- Firebase 設定改由工具箱共用檔 `/monster-strike-toolbox/shared/firebase.js` 提供（`app`、`auth`），刪掉本工具自己的設定；`window.firebase*`、`firebaseModules` 等全域名稱不變。
+- 懸浮工具箱選單、等待 Firebase 載入、Firestore 路徑（`shared/characters`、抽卡紀錄、果實存檔與存檔清單）改用工具箱 `shared.js`（`window.MSShared`）。選單畫面與路徑結果和改前相同。
+- `shared.js` 沒載入時頁面照常使用：選單維持 HTML 連結並在主控台警告，等待改用簡單輪詢，路徑退回原字串。
+
+### 新增 (Added)
+- 測試 `tests/shared-paths.test.js`：對照新舊 Firestore 路徑（含多存檔後綴）。
+
 ## [1.10.3] - 未發布
 
 ### 變更 (Changed)

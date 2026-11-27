@@ -440,22 +440,11 @@
 
     <!-- Firebase SDK -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // Firebase 初始化改由工具箱共用檔提供（app、auth 與其他工具共用同一份設定）
+        import { app, auth } from '/monster-strike-toolbox/shared/firebase.js';
+        import { onAuthStateChanged, signInWithCustomToken, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyAjpfcNC4ZniqIxYzgYwp5Cs_8gbbmflVY",
-            authDomain: "ms-toolbox-web.firebaseapp.com",
-            projectId: "ms-toolbox-web",
-            storageBucket: "ms-toolbox-web.firebasestorage.app",
-            messagingSenderId: "777818785736",
-            appId: "1:777818785736:web:880b878f4a510132dfe2fd",
-            measurementId: "G-7KV0FSL1RG"
-        };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -491,6 +480,7 @@
     </script>
 
     <script src="/monster-strike-gacha-data/pools.js"></script>
+    <script src="/monster-strike-toolbox/shared/shared.js"></script>
     <script src="storage.js"></script>
     <script src="script.js"></script>
 </body>
