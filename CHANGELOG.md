@@ -3,7 +3,7 @@
 本專案所有重大變更都會記錄於此文件。
 格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)。
 
-## [1.10.4] - 未發布
+## [1.10.4] - 2026-11-28
 
 ### 變更 (Changed)
 - Firebase 設定改由工具箱共用檔 `/monster-strike-toolbox/shared/firebase.js` 提供（`app`、`auth`），刪掉本工具自己的設定；`window.firebase*`、`firebaseModules` 等全域名稱不變。
@@ -13,7 +13,7 @@
 ### 新增 (Added)
 - 測試 `tests/shared-paths.test.js`：對照新舊 Firestore 路徑（含多存檔後綴）。
 
-## [1.10.3] - 未發布
+## [1.10.3] - 2026-11-28
 
 ### 變更 (Changed)
 - 抽卡統計匯入的角色名稱解析與修正，改由角色圖鑑資料庫的 `pools.js`（`window.CharacterPools`）提供，刪掉本工具自己的副本。修正結果與改前相同（含沒有修正時 `Two for all` 變 `Twoforall` 的空白處理）。
@@ -22,7 +22,7 @@
 ### 新增 (Added)
 - 測試 `tests/gacha-names.test.js`：對照舊實作驗證名稱修正的輸出。
 
-## [1.10.2] - 未發布
+## [1.10.2] - 2026-11-27
 
 ### 修正 (Fixed)
 - 果實分配的本機儲存鍵統一加上 `ms.fruit.`，避免和同網域的工具互相覆蓋。首次開啟時自動複製舊存檔及設定，保留原始資料和已有的新值。搬移失敗會在下次開啟時重試。
