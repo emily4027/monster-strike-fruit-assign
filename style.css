@@ -570,3 +570,9 @@ label.gi-group-title { display: flex; align-items: center; gap: 6px; cursor: poi
     .ms-float { flex-direction: column-reverse; }
     .ms-float .history-controls { justify-content: flex-end; }
 }
+
+/* 雲端狀態燈：JS 會重設 className 成 status-dot＋狀態，所以樣式掛在這些類別上 */
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ms-text-faint); display: inline-block; flex: none; }
+.status-online { background: var(--ms-success); }
+.status-saving { background: var(--ms-warning); }
+.status-offline { background: var(--ms-text-faint); }
