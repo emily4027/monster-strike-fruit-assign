@@ -1,5 +1,7 @@
 # 🍏 怪物彈珠 - 果實分配助手 (Monster Strike Fruit Allocator)
 
+> 終極目標與方向：見[工具箱 VISION.md](https://github.com/emily4027/monster-strike-toolbox/blob/main/VISION.md)。
+
 為《怪物彈珠》玩家設計的網頁工具，解決「果實分配複雜、庫存難以計算」的問題。
 管理角色的果實需求、盤點庫存，並透過雲端同步在不同裝置存取資料。
 
