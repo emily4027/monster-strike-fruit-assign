@@ -108,6 +108,8 @@ python -m http.server 8000     # 然後開啟 http://localhost:8000
 ├── index.html      # 頁面結構、Modal、Firebase SDK 載入
 ├── style.css       # 樣式與 RWD 設定
 ├── script.js       # 核心邏輯
+├── storage.js      # 本機儲存包裝與舊資料搬移
+├── tests/          # Node 測試（node --test tests/）
 ├── CHANGELOG.md    # 更新日誌
 └── README.md       # 專案說明
 ```
@@ -118,11 +120,11 @@ python -m http.server 8000     # 然後開啟 http://localhost:8000
 
 `script.js` 依區塊整理：設定與常數 → 工具函式 → DOM 與狀態 → 存檔 → 初始化與登入 → Modal → 資料計算 → 果實轉移 → 渲染 → 事件綁定。
 
-- **新增資料欄位**：把欄位名稱加進 `DATA_FIELDS` 與 `createDefaultState()`，本地存檔、雲端同步、備份匯出入、重置、切換存檔都會自動處理。
+- **新增資料欄位**：把欄位名稱加進 `storage.js` 的 `DATA_FIELDS` 與 `script.js` 的 `createDefaultState()`，本地存檔、雲端同步、備份匯出入、重置、切換存檔都會自動處理。
 - **資料有變動**：呼叫 `commit()`（= 存檔 + 重新渲染 + 記錄復原步驟）。復原紀錄是在 `commit()` 時比對整份資料（`pickData()` 的 JSON）有沒有變，所以只要改資料後呼叫 `commit()` 就能復原，不需要另外處理；程式自動補的資料用 `commit({ history: false })`，不算一步。換成另一份資料時（`applyData()`、`clearMemoryData()`）會清空復原紀錄。
 - **可調整的設定**（位於檔案開頭）：`BANK_SLOTS`（鳥籠數）、`FRUITS_PER_CHAR`（每角色果實數）、`PRESETS`（快速組合）、`ATTACK_CATEGORIES`（總覽左側分類）。
 - **雲端資料路徑**：`artifacts/{appId}/users/{uid}/fruit_data/{文件}`，預設存檔的文件為 `fruit_assign`，其他存檔為 `fruit_assign_<存檔ID>`，存檔清單為 `fruit_slots`（`{ slots: [{ id, name }] }`）；`appId` 未提供時為 `default-app-id`。
-- **LocalStorage**：預設存檔直接使用欄位名稱當 key，其他存檔為 `<存檔ID>_<欄位名稱>`；這台電腦（離線）的存檔清單與名稱為 `global_slot_list`、`slot_names_cache`，登入時不會被雲端清單覆蓋。
+- **LocalStorage**：呼叫 `store` 時用短名，由包裝加上 `ms.fruit.`。預設存檔鍵為 `ms.fruit.<欄位名稱>`，其他存檔為 `ms.fruit.<存檔ID>_<欄位名稱>`。離線存檔清單與名稱為 `ms.fruit.global_slot_list`、`ms.fruit.slot_names_cache`，登入時不會被雲端清單覆蓋。開頁時自動複製舊鍵，保留舊鍵及已有的新值，成功後記為 `ms.fruit.migrated`。
 - **sessionStorage 快取**：雲端資料依「帳號 + 存檔」分開快取（`fruit_data_cache_<uid>_<存檔ID>`），雲端存檔清單快取為 `fruit_slot_list_cache_<uid>`，登出時會清除；雲端載入期間不會寫入雲端，以雲端資料為準。
 - **雲端版本檢查**：雲端文件都有 `version`（每次寫入 + 1）與 `lastUpdated`。寫入都在 `runTransaction` 中先比對兩者是否和上次讀到 / 寫入的相同（`slotDocBase`、`slotListBase`），不同就代表其他裝置改過：存檔資料走 `handleSaveConflict()`（下載備份 + 重新載入），存檔清單走 `mergeSlotLists()`（三方合併）。新增寫入雲端的地方請沿用 `writeToCloud()` / `writeSlotListToCloud()`，不要直接 `setDoc`。
 - **從抽卡統計匯入**：讀取抽卡統計的雲端文件 `artifacts/{appId}/users/{uid}/data/gacha_records`（`records` 陣列）或 localStorage `gachaRecords`，使用欄位 `id`、`account`、`date`、`event`、`notes`（「虹夏*3、麒麟兒」格式）、`tag`（`orb` 略過）；設定在檔案開頭的 `GACHA_*` 常數。**抽卡統計改了這些路徑或欄位時，這邊要一起改。** 統一名字時會改寫抽卡統計雲端紀錄的 `notes`（`renameInGachaCloud()`：transaction 讀最新資料、只替換該角色名稱、`version` + 1、`merge: true`），抽卡統計存檔時的三方合併會接收這個修改。 轉蛋資料庫（原角色圖鑑）的名稱修正（Firestore `shared/characters` 的 `renames`，所有人可讀）：打開匯入時，讀到的抽卡紀錄先在記憶體裡套用修正，`gachaImports` 的名稱也跟著改（`renameGachaEntriesByFixes()`），抽卡統計還沒改到紀錄也不會重複匯入；解析規則要和轉蛋資料庫 `pools.js` 的 `resolveName`、抽卡統計 `notes.js` 的 `renameCharacters` 一致。匯入狀態存在存檔欄位 `gachaImports`（`[{ rid, name, linked: [{ n, t }], trashed }]`）與 `gachaAccount`。

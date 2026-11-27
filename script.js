@@ -29,8 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const USER_CACHE_KEY = 'fruit_user_cache_v1';
     const DATA_CACHE_PREFIX = 'fruit_data_cache_';
     const DEFAULT_SLOT_LIST = ['default', 'slot2', 'slot3', 'slot4'];
-    const LOCAL_SLOT_LIST_KEY = 'global_slot_list';          // localStorage：這台電腦 (離線) 的存檔清單
-    const LOCAL_SLOT_NAMES_KEY = 'slot_names_cache';         // localStorage：這台電腦 (離線) 的存檔名稱
+    const {
+        createStore, migrateLegacyStorage, DATA_FIELDS, LOCAL_SLOT_LIST_KEY, LOCAL_SLOT_NAMES_KEY,
+        LAST_SELECTED_SLOT_KEY, GACHA_SHOW_DATE_KEY, LEGACY_INVENTORY_KEY
+    } = FruitStorage;
     const SLOT_LIST_DOC = 'fruit_slots';                     // 雲端：所有裝置共用的存檔清單
     const SLOT_LIST_CACHE_PREFIX = 'fruit_slot_list_cache_'; // sessionStorage：雲端存檔清單快取
 
@@ -62,13 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTER_TAG_RE = new RegExp(`\\s*[(（](?:${PRESETS.map((p) => p.tag).join('|')})[)）]$`);
     const stripTag = (name) => String(name).replace(CHARACTER_TAG_RE, '');
     const tagOf = (name) => (String(name).match(CHARACTER_TAG_RE) || [''])[0];
-
-    // 需要存檔 / 備份 / 雲端同步的資料欄位 (單一來源)
-    const DATA_FIELDS = [
-        'characters', 'fruitAssignments', 'fruitCategories', 'fruitObtained',
-        'bankAssignments', 'storageCharacters', 'storageAssignments', 'recordName',
-        'gachaImports', 'gachaAccount'
-    ];
 
     // 從抽卡統計匯入：讀取抽卡統計的資料 (只讀不寫)
     //   抽卡統計改了這些路徑 / 欄位 (account、notes、tag、date、event、id) 時，這邊也要一起改
@@ -114,20 +109,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 本機儲存包裝：隱私模式或容量滿時 localStorage 會丟例外，
     // 讀取失敗當作沒資料；寫入失敗提示一次，避免默默中斷流程
     let storageWarned = false;
-    const store = {
-        get(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
-        set(key, value) {
-            try { localStorage.setItem(key, value); return true; } catch (e) {
-                console.error('本機儲存失敗', key, e);
-                if (!storageWarned) {
-                    storageWarned = true;
-                    customAlert('這台裝置無法存到本機（可能是隱私模式或空間已滿）。請登入雲端，或先「下載備份」保存資料。', '⚠️ 本機儲存失敗');
-                }
-                return false;
-            }
-        },
-        remove(key) { try { localStorage.removeItem(key); } catch (e) { /* 刪不掉不影響資料 */ } },
-    };
+    const getLocalStorage = () => localStorage;
+    const store = createStore(getLocalStorage, (key, e) => {
+        console.error('本機儲存失敗', key, e);
+        if (storageWarned) return;
+        storageWarned = true;
+        customAlert('這台裝置無法存到本機（可能是隱私模式或空間已滿）。請登入雲端，或先「下載備份」保存資料。', '⚠️ 本機儲存失敗');
+    });
+    migrateLegacyStorage(getLocalStorage);
 
     // 沒被接住的非同步錯誤：第一次彈窗提示，之後只記在主控台（避免連續彈窗）
     let unexpectedErrorShown = false;
@@ -147,7 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const readLocalSlotList = () => readJson(LOCAL_SLOT_LIST_KEY, null) || [...DEFAULT_SLOT_LIST];
+    const readLocalSlotList = () => {
+        const list = readJson(LOCAL_SLOT_LIST_KEY, null);
+        return Array.isArray(list) ? list : [...DEFAULT_SLOT_LIST];
+    };
 
     const addOption = (select, value, text) => {
         const option = document.createElement('option');
@@ -366,10 +358,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 這台電腦上有資料的存檔 ID (預設存檔以外的存檔，key 為 `<存檔ID>_characters`)
+    // 從本工具的儲存鍵找出有角色資料的存檔 ID，預設存檔另行處理。
     function getLocalSlotIdsWithData() {
         const suffix = '_characters';
-        return Object.keys(localStorage)
+        return store.keys()
             .filter((key) => key.endsWith(suffix))
             .map((key) => key.slice(0, -suffix.length))
             .filter((slot) => slot && slot !== 'default');
@@ -380,12 +372,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const value = field === 'recordName' ? state.recordName : JSON.stringify(state[field]);
             store.set(getLocalKey(field), value);
         });
-        if (currentSlot === 'default') store.set('fruitInventory', JSON.stringify({})); // 舊版相容
-        store.set('lastSelectedSlot', currentSlot);
+        if (currentSlot === 'default') store.set(LEGACY_INVENTORY_KEY, JSON.stringify({})); // 舊版相容
+        store.set(LAST_SELECTED_SLOT_KEY, currentSlot);
     }
 
     function clearLocalSlotData(slot) {
-        [...DATA_FIELDS, 'fruitInventory'].forEach((field) => store.remove(localKeyFor(slot, field)));
+        [...DATA_FIELDS, LEGACY_INVENTORY_KEY].forEach((field) => store.remove(localKeyFor(slot, field)));
     }
 
     // ---- 雲端 ----
@@ -654,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 切換到上次使用的存檔 (不在目前清單中時改用預設存檔)
     function restoreLastSlot() {
-        const lastSlot = store.get('lastSelectedSlot');
+        const lastSlot = store.get(LAST_SELECTED_SLOT_KEY);
         currentSlot = (lastSlot && slotList.includes(lastSlot)) ? lastSlot : 'default';
     }
 
@@ -829,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. 切換槽位並清空目前資料
         currentSlot = newSlot;
         DOM.saveSlotSelect.value = newSlot;
-        store.set('lastSelectedSlot', currentSlot);
+        store.set(LAST_SELECTED_SLOT_KEY, currentSlot);
         clearMemoryData();
 
         // 3. 重新載入資料
@@ -1647,7 +1639,11 @@ document.addEventListener('DOMContentLoaded', () => {
             list = snap.exists() ? snap.data().records : [];
             source = '抽卡統計的雲端紀錄（已登入）';
         } else {
-            list = readJson(GACHA_LOCAL_KEY, []);
+            try {
+                list = JSON.parse(localStorage.getItem(GACHA_LOCAL_KEY));
+            } catch (e) {
+                list = [];
+            }
             source = '這台電腦上的抽卡統計紀錄（未登入）';
         }
         const records = (Array.isArray(list) ? list : []).filter((r) => r && typeof r === 'object'
@@ -1752,7 +1748,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 活動標題：勾選「顯示日期」時在活動名稱前加上日期 (設定記在這台電腦)
-    const GACHA_SHOW_DATE_KEY = 'fruit_gacha_show_date';
     const readShowDate = () => { try { return store.get(GACHA_SHOW_DATE_KEY) === '1'; } catch (e) { return false; } };
     const gachaRecordLabel = (record) => {
         const event = String(record.event || '').trim();
