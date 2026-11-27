@@ -2581,7 +2581,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     const placeholder = document.createElement('div');
                     placeholder.textContent = '✓ 無需轉移或無空位';
-                    placeholder.style.cssText = 'font-size: 12px; color: #28a745; margin-top: 5px;';
+                    placeholder.style.cssText = 'font-size: 12px; color: var(--ms-success); margin-top: 5px;';
                     container.appendChild(placeholder);
                 }
             }
@@ -2598,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : state.characters;
 
         if (filtered.length === 0) {
-            DOM.characterListUl.innerHTML = '<li style="text-align:center; color:#999; padding:10px;">無符合角色</li>';
+            DOM.characterListUl.innerHTML = '<li style="text-align:center; color:var(--ms-text-faint); padding:10px;">無符合角色</li>';
             return;
         }
 

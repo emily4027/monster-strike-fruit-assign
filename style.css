@@ -479,7 +479,8 @@ label.gi-group-title { display: flex; align-items: center; gap: 6px; cursor: poi
 .gi-target { font-size: 13px; font-weight: bold; color: var(--ms-accent); margin: -4px 0 10px; }
 
 /* =====================================================================
-   共用風格銜接：頁首控制列、浮動列（復原、GitHub、工具箱）
+   本工具版面：頁首控制列、浮動列（果實分配的工具箱選單結構和其他工具不同，
+   樣式留在這裡；共用的狀態燈、浮動列排法在 theme.css）
    ===================================================================== */
 .ms-page { margin: 0; padding: var(--ms-sp-4) var(--ms-sp-4) calc(var(--ms-sp-6) + var(--ms-dock-h)); }
 .ms-page > header,
@@ -567,12 +568,5 @@ label.gi-group-title { display: flex; align-items: center; gap: 6px; cursor: poi
     .ms-float .toolbox-header { box-shadow: none; }
 }
 @media (min-width: 768px) {
-    .ms-float { flex-direction: column-reverse; }
     .ms-float .history-controls { justify-content: flex-end; }
 }
-
-/* 雲端狀態燈：JS 會重設 className 成 status-dot＋狀態，所以樣式掛在這些類別上 */
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ms-text-faint); display: inline-block; flex: none; }
-.status-online { background: var(--ms-success); }
-.status-saving { background: var(--ms-warning); }
-.status-offline { background: var(--ms-text-faint); }
