@@ -1855,46 +1855,42 @@ document.addEventListener('DOMContentLoaded', () => {
     // 抽卡統計打開時會把紀錄裡寫錯的名稱改成正確名稱。這裡讀同一份修正：
     //   1. 讀到的抽卡紀錄先在記憶體裡套用修正 (抽卡統計還沒改到的紀錄也一樣)
     //   2. 匯入狀態 gachaImports 的名稱跟著改，已對應的角色不會被當成新角色再匯入一次
-    // 名稱解析規則要和角色圖鑑 pools.js 的 resolveName、抽卡統計 notes.js 的 renameCharacters 一致。
+    // 名稱解析與修正由角色圖鑑的 pools.js (window.CharacterPools) 提供；沒載入時名稱修正跳過
     const CHARACTER_FIXES_DOC = ['shared', 'characters'];
-    const GACHA_NAME_SUFFIX_RE = /^(.*?)((?:-\d+)?(?:\s*[(（](?:同族|戰型|擊種|雙削)[)）])?)$/;
 
+    // 回傳 pools.js 的 fixes 物件 { renames, distinct }；讀不到或 pools.js 沒載入時回傳 null
     async function loadCharacterRenames() {
-        const renames = new Map();
+        if (!window.CharacterPools) {
+            console.warn('[GACHA] 角色圖鑑 pools.js 沒載入，跳過名稱修正');
+            return null;
+        }
         try {
-            if (!db) return renames;
+            if (!db) return null;
             const { doc, getDoc } = window.firebaseModules;
             const snap = await getDoc(doc(db, ...CHARACTER_FIXES_DOC));
-            const list = snap.exists() && Array.isArray(snap.data().renames) ? snap.data().renames : [];
-            list.forEach((r) => {
-                const from = r && typeof r.from === 'string' ? r.from.trim() : '';
-                const to = r && typeof r.to === 'string' ? r.to.trim() : '';
-                if (from && to && from !== to) renames.set(from, to);
-            });
+            return window.CharacterPools.readNameFixes(snap.exists() ? snap.data() : null);
         } catch (e) {
             console.warn('[GACHA] 讀不到角色名稱修正，照抽卡紀錄原樣匯入', e);
+            return null;
         }
-        return renames;
     }
 
     // 名稱 → 修正後的名稱 (可以連續修正；繞回自己時不改)，保留同名編號與註記，空白拿掉
-    function fixGachaName(renames, name) {
-        const m = String(name).match(GACHA_NAME_SUFFIX_RE);
-        const base = m ? m[1].trim() : String(name);
-        let current = base;
-        const seen = new Set([current]);
-        while (renames.has(current)) {
-            const next = renames.get(current);
-            if (seen.has(next)) return name;
-            seen.add(next);
-            current = next;
-        }
-        const to = current.replace(/\s+/g, '');
-        return to === base ? name : to + (m ? m[2].trim() : '');
+    // fixCharacterName 在沒有修正時原樣回傳；這裡補上舊行為：沒有修正時 base 內的空白也拿掉
+    // GACHA_FIXNAME_BEGIN
+    function fixGachaName(fixes, name) {
+        const pools = window.CharacterPools;
+        const fixed = pools.fixCharacterName(fixes, name);
+        if (fixed !== name) return fixed;
+        const { base, suffix } = pools.splitCharacterName(name);
+        if (!base || fixes.renames.has(base)) return name; // 有修正卻沒變＝繞回自己，原樣
+        const plain = base.replace(/\s+/g, '');
+        return plain === base ? name : plain + suffix;
     }
+    // GACHA_FIXNAME_END
 
     function applyCharacterRenames(records, renames) {
-        if (renames.size === 0) return records;
+        if (!renames || renames.renames.size === 0) return records;
         return records.map((r) => {
             if (typeof r.notes !== 'string') return r;
             const notes = String(r.notes).split(/([,，、\s+]+)/).map((part, i) => {
@@ -1913,7 +1909,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 匯入狀態的名稱跟著修正 (同一筆紀錄已有新名稱的狀態時合併)，回傳改了幾種名稱
     function renameGachaEntriesByFixes(renames) {
-        if (renames.size === 0) return 0;
+        if (!renames || renames.renames.size === 0) return 0;
         const pairs = new Map();
         state.gachaImports.forEach((entry) => {
             const fixed = fixGachaName(renames, entry.name);

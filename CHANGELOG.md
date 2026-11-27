@@ -3,6 +3,15 @@
 本專案所有重大變更都會記錄於此文件。
 格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)。
 
+## [1.10.3] - 未發布
+
+### 變更 (Changed)
+- 抽卡統計匯入的角色名稱解析與修正，改由角色圖鑑資料庫的 `pools.js`（`window.CharacterPools`）提供，刪掉本工具自己的副本。修正結果與改前相同（含沒有修正時 `Two for all` 變 `Twoforall` 的空白處理）。
+- `pools.js` 沒載入時頁面照常使用，只跳過名稱修正並在主控台留下警告。
+
+### 新增 (Added)
+- 測試 `tests/gacha-names.test.js`：對照舊實作驗證名稱修正的輸出。
+
 ## [1.10.2] - 未發布
 
 ### 修正 (Fixed)
