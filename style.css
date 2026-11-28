@@ -537,8 +537,6 @@ label.gi-group-title { display: flex; align-items: center; gap: 6px; cursor: poi
     border-radius: var(--ms-r-md);
     box-shadow: var(--ms-shadow-lg);
 }
-.ms-float .toolbox-container:hover .toolbox-list,
-.ms-float .toolbox-container:focus-within .toolbox-list,
 .ms-float .toolbox-container.is-open .toolbox-list { display: flex; }
 .ms-float .toolbox-link {
     display: flex;

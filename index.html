@@ -235,22 +235,9 @@
 
     <!-- 浮動列：手機在底部固定一列（不蓋內容），桌機在右下角 -->
     <nav class="ms-float" aria-label="復原、其他工具與連結">
-        <div class="history-controls">
-            <button type="button" id="undoBtn" class="history-btn" disabled>↩️ 復原</button>
-            <button type="button" id="redoBtn" class="history-btn" disabled>↪️ 重做</button>
-        </div>
-
-        <!-- GitHub 專案連結按鈕 -->
-        <a href="https://github.com/emily4027/monster-strike-fruit-assign" target="_blank" id="github-link" rel="noopener" title="前往 GitHub 專案頁面">
-            <svg aria-hidden="true" viewBox="0 0 16 16" version="1.1" data-view-component="true" style="fill: currentColor;" width="18" height="18">
-                <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-            </svg>
-            GitHub
-        </a>
-
         <!-- 懸浮工具箱 (工具連結會改用工具箱 tools.js 的清單；讀不到時使用下面的連結) -->
         <div class="toolbox-container">
-            <button type="button" class="toolbox-header">
+            <button type="button" class="toolbox-header" aria-haspopup="true" aria-expanded="false">
                 🧰 工具箱
             </button>
             <div class="toolbox-list">
@@ -267,11 +254,32 @@
                 <a href="https://emily4027.github.io/monster-strike-bond/" class="toolbox-link">🤝 羈絆場次工具</a>
             </div>
         </div>
+
+        <!-- GitHub 專案連結按鈕 -->
+        <a href="https://github.com/emily4027/monster-strike-fruit-assign" target="_blank" id="github-link" rel="noopener" title="前往 GitHub 專案頁面">
+            <svg aria-hidden="true" viewBox="0 0 16 16" version="1.1" data-view-component="true" style="fill: currentColor;" width="18" height="18">
+                <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            GitHub
+        </a>
+
+        <div class="history-controls">
+            <button type="button" id="undoBtn" class="history-btn" disabled>↩️ 復原</button>
+            <button type="button" id="redoBtn" class="history-btn" disabled>↪️ 重做</button>
+        </div>
     </nav>
     <script>
-        // 純畫面：手機點「工具箱」展開／收合清單（桌機滑鼠移上去也會展開）
-        document.querySelector('.ms-float .toolbox-header')?.addEventListener('click', (e) => {
-            e.currentTarget.parentElement.classList.toggle('is-open');
+        // 備援：shared.js 沒載入時自己處理工具箱開關（點按鈕開／關、點選單外或按 Esc 關閉）；
+        // shared.js 已處理（外框有 data-toolbox-bound）就跳過
+        window.addEventListener('load', () => {
+            const wrap = document.querySelector('.ms-float .toolbox-container');
+            const btn = wrap && wrap.querySelector('.toolbox-header');
+            if (!btn || wrap.hasAttribute('data-toolbox-bound')) return;
+            wrap.setAttribute('data-toolbox-bound', 'fallback');
+            const setOpen = (open) => { wrap.classList.toggle('is-open', open); btn.setAttribute('aria-expanded', String(open)); };
+            btn.addEventListener('click', () => setOpen(!wrap.classList.contains('is-open')));
+            document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target)) setOpen(false); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
         });
     </script>
 
